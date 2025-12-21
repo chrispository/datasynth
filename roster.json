@@ -1,156 +1,66 @@
 {
-    "company_name": "Lowe, Cervantes and Gonzalez",
-    "domain": "lowecervantesandgonzalez.com",
-    "employees": [
-        {
-            "name": "Xavier Walsh",
-            "email": "xavier.walsh@lowecervantesandgonzalez.com",
-            "department": "Legal",
-            "title": "Legal Assistant"
-        },
-        {
-            "name": "Christopher Brown",
-            "email": "christopher.brown@lowecervantesandgonzalez.com",
-            "department": "Marketing",
-            "title": "Marketing Manager"
-        },
-        {
-            "name": "Christine Smith",
-            "email": "christine.smith@lowecervantesandgonzalez.com",
-            "department": "Legal",
-            "title": "General Counsel"
-        },
-        {
-            "name": "Joseph Williamson",
-            "email": "joseph.williamson@lowecervantesandgonzalez.com",
-            "department": "Sales",
-            "title": "VP of Sales"
-        },
-        {
-            "name": "Samantha Lopez",
-            "email": "samantha.lopez@lowecervantesandgonzalez.com",
-            "department": "Engineering",
-            "title": "Senior Software Engineer"
-        },
-        {
-            "name": "Mark Compton",
-            "email": "mark.compton@lowecervantesandgonzalez.com",
-            "department": "Legal",
-            "title": "General Counsel"
-        },
-        {
-            "name": "Bryce Miller",
-            "email": "bryce.miller@lowecervantesandgonzalez.com",
-            "department": "Engineering",
-            "title": "CTO"
-        },
-        {
-            "name": "Michael Moore",
-            "email": "michael.moore@lowecervantesandgonzalez.com",
-            "department": "Sales",
-            "title": "Account Manager"
-        },
-        {
-            "name": "Janice Howell",
-            "email": "janice.howell@lowecervantesandgonzalez.com",
-            "department": "Human Resources",
-            "title": "HR Manager"
-        },
-        {
-            "name": "Jennifer Carpenter",
-            "email": "jennifer.carpenter@lowecervantesandgonzalez.com",
-            "department": "Finance",
-            "title": "CFO"
-        },
-        {
-            "name": "Jack Larson",
-            "email": "jack.larson@lowecervantesandgonzalez.com",
-            "department": "Human Resources",
-            "title": "HR Generalist"
-        },
-        {
-            "name": "Larry King",
-            "email": "larry.king@lowecervantesandgonzalez.com",
-            "department": "Marketing",
-            "title": "CMO"
-        },
-        {
-            "name": "Angela Mcintyre",
-            "email": "angela.mcintyre@lowecervantesandgonzalez.com",
-            "department": "Finance",
-            "title": "Finance Director"
-        },
-        {
-            "name": "Michael Lee",
-            "email": "michael.lee@lowecervantesandgonzalez.com",
-            "department": "Human Resources",
-            "title": "Recruiter"
-        },
-        {
-            "name": "Pamela Bird",
-            "email": "pamela.bird@lowecervantesandgonzalez.com",
-            "department": "Engineering",
-            "title": "Software Engineer"
-        },
-        {
-            "name": "Chad Brooks",
-            "email": "chad.brooks@lowecervantesandgonzalez.com",
-            "department": "Finance",
-            "title": "Accountant"
-        },
-        {
-            "name": "Lee Cline",
-            "email": "lee.cline@lowecervantesandgonzalez.com",
-            "department": "Engineering",
-            "title": "Engineering Manager"
-        },
-        {
-            "name": "Chad Hernandez",
-            "email": "chad.hernandez@lowecervantesandgonzalez.com",
-            "department": "Marketing",
-            "title": "Marketing Manager"
-        },
-        {
-            "name": "Joel Payne",
-            "email": "joel.payne@lowecervantesandgonzalez.com",
-            "department": "Legal",
-            "title": "General Counsel"
-        },
-        {
-            "name": "Jeffery Davis",
-            "email": "jeffery.davis@lowecervantesandgonzalez.com",
-            "department": "Legal",
-            "title": "General Counsel"
-        },
-        {
-            "name": "Anna Flowers",
-            "email": "anna.flowers@lowecervantesandgonzalez.com",
-            "department": "Marketing",
-            "title": "Marketing Manager"
-        },
-        {
-            "name": "Thomas Bullock",
-            "email": "thomas.bullock@lowecervantesandgonzalez.com",
-            "department": "Finance",
-            "title": "Accountant"
-        },
-        {
-            "name": "Tyler Orozco",
-            "email": "tyler.orozco@lowecervantesandgonzalez.com",
-            "department": "Human Resources",
-            "title": "HR Generalist"
-        },
-        {
-            "name": "Donna Tran",
-            "email": "donna.tran@lowecervantesandgonzalez.com",
-            "department": "Human Resources",
-            "title": "Recruiter"
-        },
-        {
-            "name": "Jeffrey Collier",
-            "email": "jeffrey.collier@lowecervantesandgonzalez.com",
-            "department": "Marketing",
-            "title": "Marketing Manager"
-        }
-    ]
+  "company_name": "AerospaceIonPropulsionMaintenanceCorp",
+  "domain": "aerospaceionpropulsionmaintenance.com",
+  "employees": [
+    {
+      "name": "Alice 0",
+      "email": "alice.0@aerospaceionpropulsionmaintenance.com",
+      "department": "Engineering",
+      "title": "Manager"
+    },
+    {
+      "name": "Bob 1",
+      "email": "bob.1@aerospaceionpropulsionmaintenance.com",
+      "department": "Marketing",
+      "title": "Specialist"
+    },
+    {
+      "name": "Charlie 2",
+      "email": "charlie.2@aerospaceionpropulsionmaintenance.com",
+      "department": "Sales",
+      "title": "Director"
+    },
+    {
+      "name": "David 3",
+      "email": "david.3@aerospaceionpropulsionmaintenance.com",
+      "department": "HR",
+      "title": "Lead"
+    },
+    {
+      "name": "Eve 4",
+      "email": "eve.4@aerospaceionpropulsionmaintenance.com",
+      "department": "Finance",
+      "title": "Associate"
+    },
+    {
+      "name": "Frank 5",
+      "email": "frank.5@aerospaceionpropulsionmaintenance.com",
+      "department": "Legal",
+      "title": "Manager"
+    },
+    {
+      "name": "Grace 6",
+      "email": "grace.6@aerospaceionpropulsionmaintenance.com",
+      "department": "Product",
+      "title": "Specialist"
+    },
+    {
+      "name": "Heidi 7",
+      "email": "heidi.7@aerospaceionpropulsionmaintenance.com",
+      "department": "Engineering",
+      "title": "Director"
+    },
+    {
+      "name": "Alice 8",
+      "email": "alice.8@aerospaceionpropulsionmaintenance.com",
+      "department": "Marketing",
+      "title": "Lead"
+    },
+    {
+      "name": "Bob 9",
+      "email": "bob.9@aerospaceionpropulsionmaintenance.com",
+      "department": "Sales",
+      "title": "Associate"
+    }
+  ]
 }

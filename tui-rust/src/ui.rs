@@ -15,12 +15,14 @@ pub fn render(f: &mut Frame, app: &App) {
             Constraint::Length(3),  // Header
             Constraint::Min(0),     // Body
             Constraint::Length(8),  // Logs
+            Constraint::Length(1),  // Help Footer
         ])
         .split(f.area());
 
     render_header(f, chunks[0]);
     render_body(f, app, chunks[1]);
     render_logs(f, app, chunks[2]);
+    render_help(f, chunks[3]);
 }
 
 fn render_header(f: &mut Frame, area: Rect) {
@@ -29,6 +31,15 @@ fn render_header(f: &mut Frame, area: Rect) {
         .borders(Borders::ALL)
         .style(Style::default().fg(Color::Cyan));
     f.render_widget(block, area);
+}
+
+fn render_help(f: &mut Frame, area: Rect) {
+    let help_text = " Arrows: Nav | Enter/Space: Select/Load | G: Gen Companies | S: Start | Q: Quit ";
+    let paragraph = Paragraph::new(Line::from(Span::styled(
+        help_text,
+        Style::default().fg(Color::DarkGray).add_modifier(Modifier::REVERSED),
+    )));
+    f.render_widget(paragraph, area);
 }
 
 fn render_body(f: &mut Frame, app: &App, area: Rect) {
@@ -179,9 +190,29 @@ fn render_model_section(f: &mut Frame, app: &App, area: Rect) {
 
 fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(0)])
+        .split(area);
+
+    // Load button
+    let load_highlight = app.topic_cursor == 0 && app.focus == Focus::Main;
+    let load_btn = Paragraph::new(" [ Load from topics.txt ] ")
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(if load_highlight {
+                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::Gray)
+                }),
+        )
+        .alignment(ratatui::layout::Alignment::Center);
+    f.render_widget(load_btn, chunks[0]);
+
+    let list_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(area);
+        .split(chunks[1]);
 
     // Generated topics
     let gen_items: Vec<ListItem> = if app.generated_topics.is_empty() {
@@ -190,9 +221,9 @@ fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
         app.generated_topics
             .iter()
             .enumerate()
-            .take(15)
             .map(|(i, t)| {
-                let is_selected = i == app.topic_cursor && app.focus == Focus::Main;
+                let actual_idx = i + 1;
+                let is_selected = actual_idx == app.topic_cursor && app.focus == Focus::Main;
                 let prefix = if is_selected { "▸ " } else { "  " };
                 let style = if is_selected {
                     Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
@@ -228,8 +259,8 @@ fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
             .border_style(Style::default().fg(Color::Green)),
     );
 
-    f.render_widget(gen_list, chunks[0]);
-    f.render_widget(sel_list, chunks[1]);
+    f.render_widget(gen_list, list_chunks[0]);
+    f.render_widget(sel_list, list_chunks[1]);
 }
 
 fn render_companies_section(f: &mut Frame, app: &App, area: Rect) {
@@ -246,7 +277,7 @@ fn render_companies_section(f: &mut Frame, app: &App, area: Rect) {
         for company in app.companies.iter().take(5) {
             lines.push(Line::from(format!(
                 "• {} ({} employees)",
-                company.name,
+                company.company_name,
                 company.employees.len()
             )));
         }
@@ -261,22 +292,30 @@ fn render_companies_section(f: &mut Frame, app: &App, area: Rect) {
 fn render_run_section(f: &mut Frame, app: &App, area: Rect) {
     let ready = !app.companies.is_empty() && !app.api_key.is_empty();
     
-    let text = vec![
+    let mut text = vec![
         Line::from("Ready to Generate"),
         Line::from(""),
         Line::from(format!("Files: {}", app.total_files)),
         Line::from(format!("Companies: {}", app.companies.len())),
         Line::from(format!("API Key: {}", if app.api_key.is_empty() { "Not Set" } else { "Set" })),
         Line::from(""),
-        Line::from(Span::styled(
+    ];
+
+    if app.is_generating {
+        text.push(Line::from(Span::styled(
+            "Generating... See logs below.",
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD | Modifier::ITALIC)
+        )));
+    } else {
+        text.push(Line::from(Span::styled(
             if ready { "[S] Start Generation" } else { "[S] Start (Not Ready)" },
             if ready {
                 Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::DarkGray)
             },
-        )),
-    ];
+        )));
+    }
 
     let paragraph = Paragraph::new(text);
     f.render_widget(paragraph, area);

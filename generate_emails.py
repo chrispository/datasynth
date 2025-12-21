@@ -377,6 +377,7 @@ if __name__ == "__main__":
         parser.add_argument("--pdf", action="store_true", help="Generate printed PDF versions of emails")
         parser.add_argument("--roster", type=str, default="roster.json", help="Path to roster file")
         parser.add_argument("--gemini", action="store_true", help="Use Gemini LLM for email generation")
+        parser.add_argument("--model", type=str, default="gemini-1.5-flash", help="Gemini model to use")
         args = parser.parse_args()
 
         # Handle Roster
@@ -405,8 +406,8 @@ if __name__ == "__main__":
                     print("Error: Gemini API key is required for --gemini mode.", file=sys.stderr)
                     sys.exit(1)
             
-            print("Initializing Gemini LLM...", flush=True)
-            llm = GeminiGenerator()
+            print(f"Initializing Gemini LLM with model: {args.model}...", flush=True)
+            llm = GeminiGenerator(model_name=args.model)
 
         gen = ThreadGenerator(roster=roster, llm=llm, output_dir=args.output, topic=args.topic)
         print(f"Simulating email traffic with {args.roots} roots and {args.steps} steps...", flush=True)

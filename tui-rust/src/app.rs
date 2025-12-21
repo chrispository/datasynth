@@ -46,12 +46,15 @@ pub enum Focus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Employee {
     pub name: String,
-    pub role: String,
+    pub email: String,
+    pub department: String,
+    pub title: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Company {
-    pub name: String,
+    pub company_name: String,
+    pub domain: String,
     pub employees: Vec<Employee>,
 }
 
@@ -82,9 +85,12 @@ pub struct App {
     
     // Logs
     pub logs: Vec<String>,
+    pub log_rx: tokio::sync::mpsc::UnboundedReceiver<String>,
+    pub log_tx: tokio::sync::mpsc::UnboundedSender<String>,
     
     // Control
     pub should_quit: bool,
+    pub is_generating: bool,
 }
 
 impl App {
@@ -97,6 +103,8 @@ impl App {
             "gemini-3-flash-preview".to_string(),
             "gemini-2.5-flash".to_string(),
         ];
+        
+        let (log_tx, log_rx) = tokio::sync::mpsc::unbounded_channel();
         
         let mut app = Self {
             current_section: Section::Model,
@@ -114,7 +122,10 @@ impl App {
             company_size: 10,
             companies: Vec::new(),
             logs: vec!["Application initialized".to_string()],
+            log_rx,
+            log_tx,
             should_quit: false,
+            is_generating: false,
         };
         
         app.log("Loaded environment");
@@ -122,9 +133,22 @@ impl App {
     }
     
     pub fn log(&mut self, msg: impl Into<String>) {
-        self.logs.push(msg.into());
+        let msg = msg.into();
+        self.logs.push(msg);
         if self.logs.len() > 100 {
             self.logs.remove(0);
+        }
+    }
+    
+    pub fn update(&mut self) {
+        // Drain logs from background tasks
+        while let Ok(msg) = self.log_rx.try_recv() {
+            if msg == "__GENERATION_COMPLETE__" {
+                self.is_generating = false;
+                self.log("Generation process finished.");
+            } else {
+                self.log(msg);
+            }
         }
     }
     
@@ -140,7 +164,7 @@ impl App {
                 self.selected_model_index = self.available_models.len() - 1;
             }
         } else if self.focus == Focus::Main && self.current_section == Section::Topics {
-            // Navigate within topics list
+            // Navigate within topics list (0 is the Load button)
             if self.topic_cursor > 0 {
                 self.topic_cursor -= 1;
             }
@@ -155,8 +179,8 @@ impl App {
             // Cycle through models
             self.selected_model_index = (self.selected_model_index + 1) % self.available_models.len();
         } else if self.focus == Focus::Main && self.current_section == Section::Topics {
-            // Navigate within topics list
-            let max = self.generated_topics.len().saturating_sub(1);
+            // Navigate within topics list (0 is the Load button)
+            let max = self.generated_topics.len();
             if self.topic_cursor < max {
                 self.topic_cursor += 1;
             }
@@ -188,12 +212,17 @@ impl App {
     }
     
     pub fn select_topic(&mut self) {
-        if !self.generated_topics.is_empty() && self.topic_cursor < self.generated_topics.len() {
-            let topic = self.generated_topics.remove(self.topic_cursor);
-            self.selected_topics.push(topic);
-            // Adjust cursor if needed
-            if self.topic_cursor >= self.generated_topics.len() && self.topic_cursor > 0 {
-                self.topic_cursor -= 1;
+        if self.topic_cursor == 0 {
+            self.load_topics_from_file();
+        } else {
+            let actual_idx = self.topic_cursor - 1;
+            if actual_idx < self.generated_topics.len() {
+                let topic = self.generated_topics.remove(actual_idx);
+                self.selected_topics.push(topic);
+                // Adjust cursor if needed
+                if self.topic_cursor > self.generated_topics.len() && self.topic_cursor > 0 {
+                    self.topic_cursor -= 1;
+                }
             }
         }
     }
@@ -204,23 +233,35 @@ impl App {
             return;
         }
         
-        let roles = ["CEO", "CFO", "CTO", "VP Sales", "VP Engineering", "Product Manager"];
+        let departments = ["Engineering", "Marketing", "Sales", "HR", "Finance", "Legal", "Product"];
+        let titles = ["Manager", "Specialist", "Director", "Lead", "Associate"];
         let names = ["Alice", "Bob", "Charlie", "David", "Eve", "Frank", "Grace", "Heidi"];
         
         self.companies = self.selected_topics
             .iter()
             .enumerate()
             .map(|(idx, topic)| {
-                let company_name = format!("{}Corp", topic.replace(" ", ""));
-                let employees = (0..self.company_size.min(6))
-                    .map(|i| Employee {
-                        name: names[(idx + i as usize) % names.len()].to_string(),
-                        role: roles[i as usize % roles.len()].to_string(),
+                let clean_topic = topic.replace(" ", "");
+                let company_name = format!("{}Corp", clean_topic);
+                let domain = format!("{}.com", clean_topic.to_lowercase());
+                
+                let employees = (0..self.company_size.min(10))
+                    .map(|i| {
+                        let name_idx = (idx + i as usize) % names.len();
+                        let name = names[name_idx].to_string();
+                        let dept = departments[i as usize % departments.len()];
+                        Employee {
+                            name: format!("{} {}", name, i),
+                            email: format!("{}.{}@{}", name.to_lowercase(), i, domain),
+                            department: dept.to_string(),
+                            title: titles[i as usize % titles.len()].to_string(),
+                        }
                     })
                     .collect();
                 
                 Company {
-                    name: company_name,
+                    company_name,
+                    domain,
                     employees,
                 }
             })
@@ -235,18 +276,113 @@ impl App {
             return;
         }
         
+        if self.is_generating {
+            self.log("Already generating!");
+            return;
+        }
+        
+        self.is_generating = true;
         self.log("Starting email generation...");
         
-        // Serialize companies to JSON
-        match serde_json::to_string(&self.companies) {
-            Ok(json) => {
-                self.log(format!("Companies JSON: {} bytes", json.len()));
-                // In a real implementation, we'd spawn the Python process here
-                self.log("Would execute: python generate_emails.py --companies-json ...");
+        let tx = self.log_tx.clone();
+        let roster_path = "../roster.json".to_string(); // Save to root
+        let model = self.available_models[self.selected_model_index].clone();
+        let api_key = self.api_key.clone();
+        let roots = self.chains.to_string();
+        let steps = self.total_files.to_string();
+        let topic = self.selected_topics.get(0).cloned().unwrap_or_default();
+        
+        // Save the first company to roster.json (matching Python's format)
+        if let Some(company) = self.companies.get(0) {
+            match serde_json::to_string_pretty(company) {
+                Ok(json) => {
+                    if let Err(e) = std::fs::write(&roster_path, json) {
+                        self.log(format!("Error saving roster.json: {}", e));
+                        self.is_generating = false;
+                        return;
+                    }
+                    self.log(format!("Roster saved for {}", company.company_name));
+                }
+                Err(e) => {
+                    self.log(format!("Error serializing company: {}", e));
+                    self.is_generating = false;
+                    return;
+                }
             }
-            Err(e) => {
-                self.log(format!("Error serializing companies: {}", e));
-            }
+        } else {
+            self.log("Error: No company data to save.");
+            self.is_generating = false;
+            return;
+        }
+        
+        // Spawn background task
+        tokio::spawn(async move {
+            import_process_logic(tx, model, api_key, roots, steps, topic).await;
+        });
+    }
+}
+
+async fn import_process_logic(
+    tx: tokio::sync::mpsc::UnboundedSender<String>,
+    model: String,
+    api_key: String,
+    roots: String,
+    steps: String,
+    topic: String,
+) {
+    use tokio::process::Command;
+    use tokio::io::{AsyncBufReadExt, BufReader};
+    use std::process::Stdio;
+
+    let mut cmd = Command::new("python3");
+    cmd.current_dir(".."); // Run from project root
+    cmd.arg("generate_emails.py")
+        .arg("--roots").arg(roots)
+        .arg("--steps").arg(steps)
+        .arg("--roster").arg("roster.json") // It's in the root now
+        .arg("--gemini")
+        .arg("--model").arg(model);
+    
+    if !topic.is_empty() {
+        cmd.arg("--topic").arg(topic);
+    }
+    
+    // Pass API Key
+    cmd.env("GEMINI_API_KEY", api_key);
+    
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    match cmd.spawn() {
+        Ok(mut child) => {
+            let stdout = child.stdout.take().unwrap();
+            let stderr = child.stderr.take().unwrap();
+            
+            let mut stdout_reader = BufReader::new(stdout).lines();
+            let mut stderr_reader = BufReader::new(stderr).lines();
+            
+            let tx_clone = tx.clone();
+            tokio::spawn(async move {
+                while let Ok(Some(line)) = stdout_reader.next_line().await {
+                    let _ = tx_clone.send(line);
+                }
+            });
+            
+            let tx_clone2 = tx.clone();
+            tokio::spawn(async move {
+                while let Ok(Some(line)) = stderr_reader.next_line().await {
+                    if !line.trim().is_empty() {
+                        let _ = tx_clone2.send(format!("ERROR: {}", line));
+                    }
+                }
+            });
+            
+            let _ = child.wait().await;
+            let _ = tx.send("__GENERATION_COMPLETE__".to_string());
+        }
+        Err(e) => {
+            let _ = tx.send(format!("Failed to start process: {}", e));
+            let _ = tx.send("__GENERATION_COMPLETE__".to_string());
         }
     }
 }
