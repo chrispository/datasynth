@@ -78,6 +78,10 @@ async fn run_app<B: ratatui::backend::Backend>(
                             app.navigate_right();
                         } else if app.focus == Focus::Main && app.current_section == Section::Topics {
                             app.select_topic();
+                        } else if app.focus == Focus::Main && app.current_section == Section::Companies {
+                            app.generate_companies();
+                        } else if app.focus == Focus::Main && app.current_section == Section::Run {
+                            app.start_generation();
                         }
                     }
                     KeyCode::Left => app.navigate_left(),
@@ -89,11 +93,15 @@ async fn run_app<B: ratatui::backend::Backend>(
                     KeyCode::Char(' ') if app.focus == Focus::Main && app.current_section == Section::Topics => {
                         app.select_topic();
                     }
-                    KeyCode::Char('g') if app.focus == Focus::Main && app.current_section == Section::Companies => {
-                        app.generate_companies();
-                    }
                     KeyCode::Char('s') if app.focus == Focus::Main && app.current_section == Section::Run => {
                         app.start_generation();
+                    }
+                    // Quantity adjustment with + and -
+                    KeyCode::Char('+') | KeyCode::Char('=') if app.focus == Focus::Main && app.current_section == Section::Quantity => {
+                        app.increment_quantity();
+                    }
+                    KeyCode::Char('-') | KeyCode::Char('_') if app.focus == Focus::Main && app.current_section == Section::Quantity => {
+                        app.decrement_quantity();
                     }
                     _ => {}
                 }

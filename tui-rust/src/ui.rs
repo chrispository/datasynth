@@ -108,24 +108,46 @@ fn render_main_content(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_quantity_section(f: &mut Frame, app: &App, area: Rect) {
-    let text = vec![
+    let is_focused = app.focus == Focus::Main;
+    
+    let fields = [
+        ("Total Files", app.total_files, 0),
+        ("Root Threads", app.chains, 1),
+        ("Attachments %", app.percent_attachments, 2),
+    ];
+    
+    let mut lines = vec![
         Line::from(Span::styled("Generation Parameters", Style::default().add_modifier(Modifier::BOLD))),
         Line::from(""),
-        Line::from(vec![
-            Span::raw("Root Threads: "),
-            Span::styled(format!("{}", app.chains), Style::default().fg(Color::Cyan)),
-        ]),
-        Line::from(vec![
-            Span::raw("Total Files: "),
-            Span::styled(format!("{}", app.total_files), Style::default().fg(Color::Cyan)),
-        ]),
-        Line::from(""),
-        Line::from(Span::styled("(Editing not yet implemented)", Style::default().fg(Color::DarkGray))),
     ];
+    
+    for (name, value, idx) in fields {
+        let is_selected = app.quantity_field_index == idx && is_focused;
+        let prefix = if is_selected { "▸ " } else { "  " };
+        
+        let style = if is_selected {
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        };
+        
+        lines.push(Line::from(vec![
+            Span::styled(format!("{}{}: ", prefix, name), style),
+            Span::styled(format!("{}", value), Style::default().fg(Color::Cyan).add_modifier(if is_selected { Modifier::BOLD } else { Modifier::empty() })),
+        ]));
+    }
+    
+    lines.push(Line::from(""));
+    if is_focused {
+        lines.push(Line::from(Span::styled("↑/↓: Select | +/-: Adjust", Style::default().fg(Color::DarkGray))));
+    } else {
+        lines.push(Line::from(Span::styled("→ to edit values", Style::default().fg(Color::DarkGray))));
+    }
 
-    let paragraph = Paragraph::new(text);
+    let paragraph = Paragraph::new(lines);
     f.render_widget(paragraph, area);
 }
+
 
 fn render_model_section(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
@@ -264,30 +286,57 @@ fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_companies_section(f: &mut Frame, app: &App, area: Rect) {
-    let text = if app.companies.is_empty() {
-        vec![
-            Line::from("No companies generated yet."),
+    if app.companies.is_empty() {
+        let text = vec![
+            Line::from(Span::styled("No companies generated yet.", Style::default().fg(Color::Yellow))),
             Line::from(""),
-            Line::from("Go to Topics → Select Topics → Press 'G' to generate"),
-        ]
-    } else {
-        let mut lines = vec![Line::from(format!("Companies: {}", app.companies.len()))];
-        lines.push(Line::from(""));
+            Line::from(Span::styled("[Enter] Generate 2 Random Companies", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))),
+            Line::from(""),
+            Line::from(Span::styled("(Press Enter to generate companies with randomized employees)", Style::default().fg(Color::DarkGray))),
+        ];
+        let paragraph = Paragraph::new(text);
+        f.render_widget(paragraph, area);
+        return;
+    }
+
+    // Split area horizontally for 2 companies
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(area);
+    
+    for (idx, company) in app.companies.iter().take(2).enumerate() {
+        let mut lines = vec![
+            Line::from(Span::styled(&company.company_name, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+            Line::from(Span::styled(format!("Domain: {}", company.domain), Style::default().fg(Color::DarkGray))),
+            Line::from(""),
+            Line::from(Span::styled("Employees:", Style::default().add_modifier(Modifier::UNDERLINED))),
+        ];
         
-        for company in app.companies.iter().take(5) {
-            lines.push(Line::from(format!(
-                "• {} ({} employees)",
-                company.company_name,
-                company.employees.len()
+        for emp in company.employees.iter().take(8) {
+            lines.push(Line::from(vec![
+                Span::styled(format!("  {} ", emp.name), Style::default().fg(Color::White)),
+                Span::styled(format!("({})", emp.title), Style::default().fg(Color::DarkGray)),
+            ]));
+        }
+        
+        if company.employees.len() > 8 {
+            lines.push(Line::from(Span::styled(
+                format!("  ... and {} more", company.employees.len() - 8),
+                Style::default().fg(Color::DarkGray)
             )));
         }
         
-        lines
-    };
-
-    let paragraph = Paragraph::new(text);
-    f.render_widget(paragraph, area);
+        let block = Block::default()
+            .title(format!(" Company {} ", idx + 1))
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(if idx == 0 { Color::Cyan } else { Color::Magenta }));
+        
+        let paragraph = Paragraph::new(lines).block(block);
+        f.render_widget(paragraph, chunks[idx]);
+    }
 }
+
 
 fn render_run_section(f: &mut Frame, app: &App, area: Rect) {
     let ready = !app.companies.is_empty() && !app.api_key.is_empty();

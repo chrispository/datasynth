@@ -15,8 +15,10 @@ from llm import GeminiGenerator
 fake = Faker()
 
 class FileGenerator:
-    def __init__(self, output_dir="output"):
+    def __init__(self, output_dir="output", llm=None, topic=None):
         self.output_dir = output_dir
+        self.llm = llm
+        self.topic = topic
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
@@ -38,10 +40,36 @@ class FileGenerator:
         doc.save(filepath)
         return filepath
 
-    def generate_random_file(self, base_name):
+    def _generate_content(self, doc_type, context=None):
+        """Generate document content using LLM or fallback templates."""
+        if self.llm:
+            prompt = f"Generate a realistic {doc_type} document"
+            if self.topic:
+                prompt += f" related to {self.topic}"
+            if context:
+                prompt += f". Context: {context}"
+            prompt += ". Write only the document content, no headers or metadata. Keep it under 500 words."
+            
+            content = self.llm.generate_email_content(prompt)
+            if content:
+                return content
+        
+        # Fallback to topic-based template
+        if self.topic:
+            templates = [
+                f"DOCUMENT: {self.topic}\n\n" + fake.paragraph(nb_sentences=8),
+                f"REPORT: Analysis of {self.topic}\n\nExecutive Summary:\n" + fake.paragraph(nb_sentences=5) + "\n\nDetails:\n" + fake.paragraph(nb_sentences=8),
+                f"NOTES: {self.topic} Discussion\n\n" + fake.paragraph(nb_sentences=10),
+                f"PROPOSAL: {self.topic}\n\nBackground:\n" + fake.paragraph(nb_sentences=4) + "\n\nRecommendations:\n" + fake.paragraph(nb_sentences=6),
+            ]
+            return random.choice(templates)
+        
+        return fake.text(max_nb_chars=1000)
+
+    def generate_random_file(self, base_name, doc_type="document", context=None):
         ext = random.choice(["pdf", "docx"])
         filename = f"{base_name}.{ext}"
-        content = fake.text(max_nb_chars=1000)
+        content = self._generate_content(doc_type, context)
         
         if ext == "pdf":
             return self.create_pdf(filename, content)
@@ -88,14 +116,15 @@ class Email:
         return f"[{self.date.strftime('%Y-%m-%d %H:%M')}] {self.sender} -> {', '.join(self.recipients)} | {self.subject} ({self.type})"
 
 class ThreadGenerator:
-    def __init__(self, roster=None, llm=None, start_date=None, output_dir="output", topic=None):
+    def __init__(self, roster=None, llm=None, start_date=None, output_dir="output", topic=None, attachment_percent=30):
         self.emails = [] # Flat list of all emails generated
         self.threads = {} # Map thread_id -> list of Email objects
         self.current_date = start_date if start_date else datetime.datetime.now() - datetime.timedelta(days=30)
         self.roster = roster if roster else [{"name": fake.name(), "email": fake.email(), "title": "Employee", "department": "General"} for _ in range(10)]
         self.llm = llm
-        self.file_gen = FileGenerator(output_dir)
+        self.file_gen = FileGenerator(output_dir, llm=llm, topic=topic)
         self.topic = topic
+        self.attachment_percent = attachment_percent / 100.0  # Convert to 0-1 range
 
     def _tick_time(self):
         # Advance time by random minutes/hours
@@ -105,6 +134,15 @@ class ThreadGenerator:
 
     def get_person_display(self, person):
         return f"{person['name']} <{person['email']}>"
+
+    def _get_thread_participants(self, thread_id):
+        """Get all unique participants (senders and recipients) from a thread."""
+        participants = set()
+        if thread_id in self.threads:
+            for email in self.threads[thread_id]:
+                participants.add(email.sender)
+                participants.update(email.recipients)
+        return list(participants)
 
     def create_root_email(self):
         sender = random.choice(self.roster)
@@ -135,10 +173,12 @@ class ThreadGenerator:
             msg_type="new"
         )
         
-        # Chance to add attachment
-        if random.random() < 0.3:
+        # Chance to add attachment based on configured percentage
+        if random.random() < self.attachment_percent:
             safe_subject = "".join([c if c.isalnum() else "_" for c in subject])
-            filepath = self.file_gen.generate_random_file(safe_subject)
+            doc_types = ["report", "proposal", "notes", "analysis", "summary"]
+            doc_type = random.choice(doc_types)
+            filepath = self.file_gen.generate_random_file(safe_subject, doc_type=doc_type, context=body[:200])
             filename = os.path.basename(filepath)
             ctype = "application/pdf" if filename.endswith(".pdf") else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             email.add_attachment(Attachment(filename, filepath, ctype))
@@ -146,7 +186,7 @@ class ThreadGenerator:
         self._store_email(email)
         return email
 
-    def reply_to(self, parent_email):
+    def reply_to(self, parent_email, reply_all=True):
         # Extract name from display string "Name <email>"
         def parse_display(display):
             if " <" in display:
@@ -165,8 +205,16 @@ class ThreadGenerator:
         if not roster_sender:
             roster_sender = {"name": sender_info['name'], "email": sender_info['email'], "title": "Employee", "department": "General"}
 
+        # Primary recipient is always the original sender
         recipients = [parent_sender]
         roster_recipients = [next((p for p in self.roster if p['email'] == r['email']), r) for r in recipients]
+        
+        # Reply-all: CC other original recipients (excluding the new sender)
+        cc_recipients = []
+        if reply_all and len(parent_recipients) > 1:
+            for r in parent_recipients:
+                if r['email'] != sender_info['email']:
+                    cc_recipients.append(r)
 
         subject = parent_email.subject
         if not subject.lower().startswith("re:"):
@@ -196,16 +244,37 @@ class ThreadGenerator:
             msg_type="reply"
         )
         
+        # Add CC recipients for reply-all
+        email.cc = [f"{r['name']} <{r['email']}>" for r in cc_recipients]
+        
         # Handle Headers
         email.references = parent_email.references + [parent_email.message_id]
         
         self._store_email(email)
         return email
 
+
     def forward(self, parent_email):
-        # Simpler logic for forward for now, but use roster
-        sender = random.choice(self.roster)
-        potential_recipients = [p for p in self.roster if self.get_person_display(p) not in parent_email.recipients and self.get_person_display(p) != parent_email.sender]
+        # Pick sender from thread participants for realism (someone who was in the conversation)
+        thread_participants = self._get_thread_participants(parent_email.thread_id)
+        
+        # Find roster entries for participants
+        def parse_display(display):
+            if " <" in display:
+                return display.split(" <")[1].rstrip(">")
+            return display
+        
+        participant_emails = [parse_display(p) for p in thread_participants]
+        roster_participants = [p for p in self.roster if p['email'] in participant_emails]
+        
+        if roster_participants:
+            sender = random.choice(roster_participants)
+        else:
+            # Fallback to random if no participants found in roster
+            sender = random.choice(self.roster)
+        
+        # Forward to someone NOT in the thread
+        potential_recipients = [p for p in self.roster if self.get_person_display(p) not in thread_participants]
         if not potential_recipients:
             potential_recipients = [random.choice(self.roster)]
         recipients = [random.choice(potential_recipients)]
@@ -243,6 +312,7 @@ class ThreadGenerator:
             
         self._store_email(email)
         return email
+
 
     def _store_email(self, email):
         self.emails.append(email)
@@ -284,6 +354,10 @@ def save_as_eml(email_obj, output_dir="output"):
     msg['Date'] = formatdate(email_obj.date.timestamp())
     msg['Message-ID'] = email_obj.message_id
     
+    # Add CC if present (for reply-all)
+    if email_obj.cc:
+        msg['Cc'] = ", ".join(email_obj.cc)
+    
     if email_obj.in_reply_to:
         msg['In-Reply-To'] = email_obj.in_reply_to
     
@@ -291,6 +365,7 @@ def save_as_eml(email_obj, output_dir="output"):
         msg['References'] = " ".join(email_obj.references)
         
     msg.set_content(email_obj.body)
+
     
     # Add attachments
     for att in email_obj.attachments:
@@ -374,6 +449,7 @@ if __name__ == "__main__":
         parser.add_argument("--steps", type=int, default=20, help="Number of simulation steps")
         parser.add_argument("--output", type=str, default="output", help="Output directory")
         parser.add_argument("--topic", type=str, default=None, help="Topic to focus on")
+        parser.add_argument("--attachments", type=int, default=30, help="Percentage of emails with attachments (0-100)")
         parser.add_argument("--pdf", action="store_true", help="Generate printed PDF versions of emails")
         parser.add_argument("--roster", type=str, default="roster.json", help="Path to roster file")
         parser.add_argument("--gemini", action="store_true", help="Use Gemini LLM for email generation")
@@ -409,10 +485,27 @@ if __name__ == "__main__":
             print(f"Initializing Gemini LLM with model: {args.model}...", flush=True)
             llm = GeminiGenerator(model_name=args.model)
 
-        gen = ThreadGenerator(roster=roster, llm=llm, output_dir=args.output, topic=args.topic)
+        # Create a topic-based subfolder for this run's output
+        if args.topic:
+            # Extract first two words from topic for folder name
+            words = args.topic.split()[:2]
+            folder_name = "_".join(w.lower() for w in words)
+            # Clean up any non-alphanumeric chars
+            folder_name = "".join(c if c.isalnum() or c == "_" else "_" for c in folder_name)
+        else:
+            # Fallback to timestamp if no topic
+            folder_name = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        run_output_dir = os.path.join(args.output, folder_name)
+        os.makedirs(run_output_dir, exist_ok=True)
+        print(f"Output folder: {run_output_dir}", flush=True)
+
+        gen = ThreadGenerator(roster=roster, llm=llm, output_dir=run_output_dir, topic=args.topic, attachment_percent=args.attachments)
         print(f"Simulating email traffic with {args.roots} roots and {args.steps} steps...", flush=True)
+        print(f"Attachment rate: {args.attachments}%", flush=True)
         if args.topic:
             print(f"Topic: {args.topic}", flush=True)
+
             
         gen.simulate(num_roots=args.roots, max_steps=args.steps)
         
