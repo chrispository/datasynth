@@ -745,7 +745,7 @@ async fn import_process_logic(
     let mut cmd = Command::new("python3");
     cmd.current_dir(".."); // Run from project root
     cmd.arg("generate_emails.py")
-        .arg("--steps").arg(steps)
+        .arg("--files").arg(steps)  // steps var is actually # of inclusive files now
         .arg("--attachments").arg(attachments)
         .arg("--roster").arg("roster.json") // It's in the root now
         .arg("--gemini")

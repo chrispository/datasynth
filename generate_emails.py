@@ -47,8 +47,13 @@ class FileGenerator:
             if self.topic:
                 prompt += f" related to {self.topic}"
             if context:
-                prompt += f". Context: {context}"
-            prompt += ". Write only the document content, no headers or metadata. Keep it under 500 words."
+                prompt += f". Context from related email thread: {context}"
+            prompt += """. 
+
+IMPORTANT: This is a standalone business document (Word/PDF attachment), NOT an email. 
+Do not include any email language like greetings, signatures, "Dear", "Best regards", "From:", "To:", etc.
+Write it as a formal document with appropriate headings, sections, and professional formatting.
+Keep it under 500 words. Write only the document content."""
             
             content = self.llm.generate_email_content(prompt)
             if content:
@@ -188,15 +193,7 @@ class ThreadGenerator:
             msg_type="new"
         )
         
-        # Chance to add attachment based on configured percentage
-        if random.random() < self.attachment_percent:
-            safe_subject = "".join([c if c.isalnum() else "_" for c in subject])
-            doc_types = ["report", "proposal", "notes", "analysis", "summary"]
-            doc_type = random.choice(doc_types)
-            filepath = self.file_gen.generate_random_file(safe_subject, doc_type=doc_type, context=body[:200])
-            filename = os.path.basename(filepath)
-            ctype = "application/pdf" if filename.endswith(".pdf") else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            email.add_attachment(Attachment(filename, filepath, ctype))
+        # Note: Attachments are now generated at save time for inclusive emails only
 
         self._store_email(email)
         return email
@@ -344,13 +341,27 @@ class ThreadGenerator:
         if email.thread_id not in self.threads:
             self.threads[email.thread_id] = []
         self.threads[email.thread_id].append(email)
+        
+        inclusive_count = self._count_inclusive_emails()
+        print(f"  [Progress] Total emails: {len(self.emails)} | Inclusive emails: {inclusive_count}", flush=True)
 
-    def simulate(self, max_steps=20):
+    def _count_inclusive_emails(self):
+        """Count emails that are not parents of other emails (leaf/inclusive emails)."""
+        parent_message_ids = set()
+        for email_obj in self.emails:
+            if email_obj.parent_id:
+                parent_message_ids.add(email_obj.parent_id)
+        return sum(1 for e in self.emails if e.message_id not in parent_message_ids)
+
+    def simulate(self, target_inclusive=5, max_iterations=500):
+        """Simulate email thread until we have target_inclusive leaf emails."""
         # Create exactly one root email to start the thread
         self.create_root_email()
             
-        # Build out the single thread with replies and occasional forwards
-        for _ in range(max_steps):
+        # Build thread until we have enough inclusive emails
+        iterations = 0
+        while self._count_inclusive_emails() < target_inclusive and iterations < max_iterations:
+            iterations += 1
             # We only have one thread, so get it
             tid = list(self.threads.keys())[0]
             thread_msgs = self.threads[tid]
@@ -370,6 +381,9 @@ class ThreadGenerator:
                 self.reply_to(parent)
             elif action == "forward":
                 self.forward(parent)
+        
+        if iterations >= max_iterations:
+            print(f"Warning: Hit max iterations ({max_iterations}), may have fewer inclusive emails than requested", flush=True)
 
 def save_as_markdown(email_obj, output_dir="output", index=0):
     # Create safe subject for filename
@@ -421,7 +435,8 @@ if __name__ == "__main__":
     try:
         print("Starting generator...", flush=True)
         parser = argparse.ArgumentParser()
-        parser.add_argument("--steps", type=int, default=20, help="Number of emails to generate in the thread")
+        parser.add_argument("--files", type=int, default=5, help="Number of inclusive email threads to generate")
+        parser.add_argument("--steps", type=int, default=None, help="Deprecated, use --files instead")
         parser.add_argument("--output", type=str, default="output", help="Output directory")
         parser.add_argument("--topic", type=str, default=None, help="Topic to focus on")
         parser.add_argument("--attachments", type=int, default=30, help="Percentage of emails with attachments (0-100)")
@@ -477,23 +492,58 @@ if __name__ == "__main__":
         print(f"Output folder: {run_output_dir}", flush=True)
 
         gen = ThreadGenerator(roster=roster, llm=llm, output_dir=run_output_dir, topic=args.topic, attachment_percent=args.attachments)
-        print(f"Generating email thread with {args.steps} messages...", flush=True)
+        
+        # Handle backwards compatibility: --steps is deprecated in favor of --files
+        target_files = args.files
+        if args.steps is not None:
+            print(f"Warning: --steps is deprecated, use --files instead", flush=True)
+            target_files = args.steps
+        
+        print(f"Generating {target_files} inclusive email threads...", flush=True)
         print(f"Attachment rate: {args.attachments}%", flush=True)
         if args.topic:
             print(f"Topic: {args.topic}", flush=True)
 
             
-        gen.simulate(max_steps=args.steps)
+        gen.simulate(target_inclusive=target_files)
         
         print(f"Generated {len(gen.emails)} emails.", flush=True)
+        
+        # Find all emails that are parents of other emails (non-inclusive)
+        # Inclusive emails are "leaf" nodes - not referenced as parent_id by any other email
+        parent_message_ids = set()
+        for email_obj in gen.emails:
+            if email_obj.parent_id:
+                parent_message_ids.add(email_obj.parent_id)
+        
+        # Count inclusive emails
+        inclusive_emails = [e for e in gen.emails if e.message_id not in parent_message_ids]
+        print(f"Inclusive (leaf) emails: {len(inclusive_emails)}", flush=True)
+        
+        # Only save inclusive emails (those not referenced as parents)
+        # Attachments are generated at save time for inclusive emails only
         all_attachments = set()
-        for idx, email_obj in enumerate(gen.emails, start=1):
-            for att in email_obj.attachments:
-                all_attachments.add(att.filepath)
+        inclusive_idx = 0
+        for email_obj in gen.emails:
+            if email_obj.message_id not in parent_message_ids:
+                inclusive_idx += 1
                 
-            md_path = save_as_markdown(email_obj, gen.file_gen.output_dir, index=idx)
-            
-            print(f"Saved: {md_path}", flush=True)
+                # Generate attachment for this inclusive email based on percentage
+                if random.random() < args.attachments / 100.0:
+                    safe_subject = "".join([c if c.isalnum() else "_" for c in email_obj.subject])[:40]
+                    doc_types = ["report", "proposal", "notes", "analysis", "summary"]
+                    doc_type = random.choice(doc_types)
+                    filepath = gen.file_gen.generate_random_file(safe_subject, doc_type=doc_type, context=email_obj.body[:200])
+                    filename = os.path.basename(filepath)
+                    ctype = "application/pdf" if filename.endswith(".pdf") else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    email_obj.attachments = [Attachment(filename, filepath, ctype)]
+                
+                for att in email_obj.attachments:
+                    all_attachments.add(att.filepath)
+                
+                md_path = save_as_markdown(email_obj, gen.file_gen.output_dir, index=inclusive_idx)
+                
+                print(f"Saved: {md_path}", flush=True)
             
         # Cleanup original unnumbered attachment files
         for att_path in all_attachments:

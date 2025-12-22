@@ -14,7 +14,9 @@ class GeminiGenerator:
 
     def generate_email_content(self, prompt):
         try:
+            print(f"  [LLM] Requesting content from Gemini...", end="", flush=True)
             response = self.model.generate_content(prompt)
+            print(" Done.", flush=True)
             return response.text
         except Exception as e:
             print(f"Error generating content with Gemini: {e}")
