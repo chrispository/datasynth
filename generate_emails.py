@@ -3,6 +3,7 @@ import random
 import datetime
 import os
 import email
+import re
 from email.message import EmailMessage
 from email.utils import formatdate
 import mimetypes
@@ -34,7 +35,17 @@ class FileGenerator:
 
     def create_docx(self, filename, content_text):
         doc = Document()
-        doc.add_paragraph(content_text)
+        # Add a title at the top of the Word document
+        title_text = filename.replace('.docx', '').replace('_', ' ')
+        # Clean up common prefixes if any
+        title_text = re.sub(r'^\d{4}\s+', '', title_text)
+        doc.add_heading(title_text, 0)
+        
+        # Split by double newlines to create actual paragraphs
+        paragraphs = content_text.split('\n\n')
+        for p in paragraphs:
+            if p.strip():
+                doc.add_paragraph(p.strip())
         
         filepath = os.path.join(self.output_dir, filename)
         doc.save(filepath)

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum Section {
     Model,
     Quantity,
@@ -41,15 +42,10 @@ impl Section {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum Focus {
     Sidebar,
     Main,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum QuantityField {
-    TotalFiles,
-    PercentAttachments,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -144,9 +140,10 @@ impl App {
         let api_key = dotenv::var("GEMINI_API_KEY").unwrap_or_default();
         
         let available_models = vec![
+            "gemini-2.5-flash".to_string(),
+            "gemini-2.5-pro".to_string(),
             "gemini-3-pro-preview".to_string(),
             "gemini-3-flash-preview".to_string(),
-            "gemini-2.5-flash".to_string(),
         ];
         
         let (log_tx, log_rx) = tokio::sync::mpsc::unbounded_channel();
