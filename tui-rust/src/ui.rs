@@ -103,6 +103,7 @@ fn render_main_content(f: &mut Frame, app: &App, area: Rect) {
         Section::Topics => render_topics_section(f, app, inner),
         Section::Companies => render_companies_section(f, app, inner),
         Section::Run => render_run_section(f, app, inner),
+        Section::Convert => render_convert_section(f, app, inner),
         _ => render_placeholder(f, app, inner),
     }
 }
@@ -112,8 +113,7 @@ fn render_quantity_section(f: &mut Frame, app: &App, area: Rect) {
     
     let fields = [
         ("Total Files", app.total_files, 0),
-        ("Root Threads", app.chains, 1),
-        ("Attachments %", app.percent_attachments, 2),
+        ("Attachments %", app.percent_attachments, 1),
     ];
     
     let mut lines = vec![
@@ -213,11 +213,13 @@ fn render_model_section(f: &mut Frame, app: &App, area: Rect) {
 fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(0)])
+        .constraints([Constraint::Length(3), Constraint::Min(0), Constraint::Length(2)])
         .split(area);
 
-    // Load button
-    let load_highlight = app.topic_cursor == 0 && app.focus == Focus::Main;
+    let is_focused = app.focus == Focus::Main;
+
+    // Load button (panel 0)
+    let load_highlight = app.topic_panel == 0 && is_focused;
     let load_btn = Paragraph::new(" [ Load from topics.txt ] ")
         .block(
             Block::default()
@@ -236,7 +238,7 @@ fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(chunks[1]);
 
-    // Generated topics
+    // Generated topics (panel 1)
     let gen_items: Vec<ListItem> = if app.generated_topics.is_empty() {
         vec![ListItem::new("  (empty)").style(Style::default().fg(Color::DarkGray))]
     } else {
@@ -244,8 +246,7 @@ fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
             .iter()
             .enumerate()
             .map(|(i, t)| {
-                let actual_idx = i + 1;
-                let is_selected = actual_idx == app.topic_cursor && app.focus == Focus::Main;
+                let is_selected = app.topic_panel == 1 && i == app.topic_cursor && is_focused;
                 let prefix = if is_selected { "▸ " } else { "  " };
                 let style = if is_selected {
                     Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
@@ -257,32 +258,65 @@ fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
             .collect()
     };
 
+    let gen_border_style = if app.topic_panel == 1 && is_focused {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default().fg(Color::Cyan)
+    };
+
     let gen_list = List::new(gen_items).block(
         Block::default()
             .title(" Generated ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Cyan)),
+            .border_style(gen_border_style),
     );
 
-    // Selected topics
+    // Selected topics (panel 2)
     let sel_items: Vec<ListItem> = if app.selected_topics.is_empty() {
         vec![ListItem::new("  (empty)").style(Style::default().fg(Color::DarkGray))]
     } else {
         app.selected_topics
             .iter()
-            .map(|t| ListItem::new(format!("  {}", t)))
+            .enumerate()
+            .map(|(i, t)| {
+                let is_selected = app.topic_panel == 2 && i == app.selected_topic_cursor && is_focused;
+                let prefix = if is_selected { "▸ " } else { "  " };
+                let style = if is_selected {
+                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::White)
+                };
+                ListItem::new(format!("{}{}", prefix, t)).style(style)
+            })
             .collect()
+    };
+
+    let sel_border_style = if app.topic_panel == 2 && is_focused {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default().fg(Color::Green)
     };
 
     let sel_list = List::new(sel_items).block(
         Block::default()
             .title(" Selected ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Green)),
+            .border_style(sel_border_style),
     );
 
     f.render_widget(gen_list, list_chunks[0]);
     f.render_widget(sel_list, list_chunks[1]);
+    
+    // Help text
+    let help = Paragraph::new(Line::from(vec![
+        Span::styled("Tab", Style::default().fg(Color::Cyan)),
+        Span::raw(": Switch panels  "),
+        Span::styled("Enter/Space", Style::default().fg(Color::Cyan)),
+        Span::raw(": Move topic  "),
+        Span::styled("Backspace", Style::default().fg(Color::Cyan)),
+        Span::raw(": Remove selected"),
+    ]));
+    f.render_widget(help, chunks[2]);
 }
 
 fn render_companies_section(f: &mut Frame, app: &App, area: Rect) {
@@ -379,6 +413,101 @@ fn render_placeholder(f: &mut Frame, app: &App, area: Rect) {
 
     let paragraph = Paragraph::new(text);
     f.render_widget(paragraph, area);
+}
+
+fn render_convert_section(f: &mut Frame, app: &App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
+        .split(area);
+
+    let is_focused = app.focus == Focus::Main;
+
+    // Top: Folder List
+    let folders: Vec<ListItem> = if app.convert_subfolders.is_empty() {
+        vec![ListItem::new(" (No output folders found) ").style(Style::default().fg(Color::DarkGray))]
+    } else {
+        app.convert_subfolders
+            .iter()
+            .enumerate()
+            .map(|(i, name)| {
+                let is_selected = i == app.convert_selected_index;
+                let prefix = if is_selected { "▸ " } else { "  " };
+                let style = if is_selected && is_focused {
+                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                } else if is_selected {
+                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::White)
+                };
+                ListItem::new(format!("{}{}", prefix, name)).style(style)
+            })
+            .collect()
+    };
+
+    let list = List::new(folders).block(
+        Block::default()
+            .title(" Select Output Folder (↑/↓) ")
+            .borders(Borders::ALL)
+            .border_style(if is_focused && app.convert_active_area == 0 {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default().fg(Color::Gray)
+            }),
+    );
+    f.render_widget(list, chunks[0]);
+
+    // Bottom: Combined Options Pane
+    let check_mark = if app.convert_combine { "[x]" } else { "[ ]" };
+    
+    let btn_text = if app.is_converting {
+        "Converting... (Please wait)"
+    } else {
+        "[ Enter ] Convert to PDF"
+    };
+    
+    let option_focused = is_focused && app.convert_active_area == 1;
+    let button_focused = is_focused && app.convert_active_area == 2;
+
+    let button_style = if button_focused {
+        if app.is_converting {
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+        }
+    } else if is_focused && app.convert_active_area == 0 {
+         Style::default().fg(Color::DarkGray)
+    } else {
+        Style::default().fg(Color::DarkGray)
+    };
+
+    let options_text = vec![
+        Line::from(vec![
+            Span::styled(format!("{} Combine into 1 PDF", check_mark), 
+                if option_focused { Style::default().fg(Color::White).add_modifier(Modifier::BOLD) } else { Style::default().fg(Color::DarkGray) }
+            ),
+            Span::styled("  (Space to toggle)", Style::default().fg(Color::DarkGray)),
+        ]),
+        Line::from(""),
+        Line::from(Span::styled(btn_text, button_style)),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Converts .eml files and attachments to PDF. Merges them in chronological order.",
+            Style::default().fg(Color::DarkGray)
+        )),
+    ];
+    
+    let options_para = Paragraph::new(options_text).block(
+        Block::default()
+            .title(" Options ")
+            .borders(Borders::ALL)
+            .border_style(if option_focused || button_focused {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default().fg(Color::Gray)
+            }),
+    );
+    f.render_widget(options_para, chunks[1]);
 }
 
 fn render_logs(f: &mut Frame, app: &App, area: Rect) {
