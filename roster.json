@@ -1,64 +1,64 @@
 {
-  "company_name": "Apex Corporation",
-  "domain": "apexcorporation.com",
+  "company_name": "Global Solutions Inc.",
+  "domain": "globalsolutions.com",
   "employees": [
     {
       "name": "Charles Jackson",
-      "email": "charles.jackson@apexcorporation.com",
+      "email": "charles.jackson@globalsolutions.com",
       "department": "Engineering",
       "title": "Manager"
     },
     {
-      "name": "Isabella Garcia",
-      "email": "isabella.garcia@apexcorporation.com",
+      "name": "Thomas Anderson",
+      "email": "thomas.anderson@globalsolutions.com",
       "department": "Marketing",
       "title": "Specialist"
     },
     {
-      "name": "Robert Brown",
-      "email": "robert.brown@apexcorporation.com",
+      "name": "James Williams",
+      "email": "james.williams@globalsolutions.com",
       "department": "Sales",
       "title": "Director"
     },
     {
-      "name": "William Wilson",
-      "email": "william.wilson@apexcorporation.com",
+      "name": "Robert Brown",
+      "email": "robert.brown@globalsolutions.com",
       "department": "HR",
       "title": "Lead"
     },
     {
-      "name": "Maria Rodriguez",
-      "email": "maria.rodriguez@apexcorporation.com",
+      "name": "Diego Fernandez",
+      "email": "diego.fernandez@globalsolutions.com",
       "department": "Finance",
       "title": "Associate"
     },
     {
-      "name": "James Williams",
-      "email": "james.williams@apexcorporation.com",
+      "name": "Nia Johnson",
+      "email": "nia.johnson@globalsolutions.com",
       "department": "Legal",
       "title": "Senior Engineer"
     },
     {
-      "name": "Amina Diallo",
-      "email": "amina.diallo@apexcorporation.com",
+      "name": "Richard Moore",
+      "email": "richard.moore@globalsolutions.com",
       "department": "Product",
       "title": "VP"
     },
     {
-      "name": "Michael Davis",
-      "email": "michael.davis@apexcorporation.com",
+      "name": "David Miller",
+      "email": "david.miller@globalsolutions.com",
       "department": "Engineering",
       "title": "Manager"
     },
     {
-      "name": "Nia Johnson",
-      "email": "nia.johnson@apexcorporation.com",
+      "name": "Yaa Asantewaa",
+      "email": "yaa.asantewaa@globalsolutions.com",
       "department": "Marketing",
       "title": "Specialist"
     },
     {
-      "name": "Thomas Anderson",
-      "email": "thomas.anderson@apexcorporation.com",
+      "name": "Isabella Garcia",
+      "email": "isabella.garcia@globalsolutions.com",
       "department": "Sales",
       "title": "Director"
     }

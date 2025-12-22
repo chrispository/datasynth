@@ -144,6 +144,21 @@ class ThreadGenerator:
                 participants.update(email.recipients)
         return list(participants)
 
+    def _can_forward_to_new_recipients(self, thread_id):
+        """Check if there are roster members not in the current thread."""
+        thread_participants = self._get_thread_participants(thread_id)
+        participant_emails = set()
+        for p in thread_participants:
+            if " <" in p:
+                participant_emails.add(p.split(" <")[1].rstrip(">"))
+            else:
+                participant_emails.add(p)
+        
+        for person in self.roster:
+            if person['email'] not in participant_emails:
+                return True
+        return False
+
     def create_root_email(self):
         sender = random.choice(self.roster)
         recipients = random.sample([p for p in self.roster if p != sender], k=random.randint(1, 3))
@@ -229,8 +244,13 @@ class ThreadGenerator:
             if self.topic and random.random() < 0.2:
                  new_body += f"\n\nRegarding the {self.topic} aspect, I agree."
 
-        quoted_text = f"\n\nOn {parent_email.date.strftime('%Y-%m-%d %H:%M')}, {parent_email.sender} wrote:\n> " + parent_email.body.replace("\n", "\n> ")
-        full_body = new_body + quoted_text
+        # Recursively quote the ENTIRE parent body, indented
+        # Clean up existing newlines before quoting
+        parent_body_lines = parent_email.body.split('\n')
+        quoted_lines = [f"> {line}" for line in parent_body_lines]
+        quoted_block = "\n".join(quoted_lines)
+
+        full_body = f"{new_body}\n\nOn {parent_email.date.strftime('%Y-%m-%d %H:%M')}, {parent_email.sender} wrote:\n{quoted_block}"
         
         email = Email(
             sender=self.get_person_display(roster_sender),
@@ -288,15 +308,20 @@ class ThreadGenerator:
              _, new_body = self.llm.generate_email(sender, recipients, f"Forwarding: {self.topic if self.topic else parent_email.subject}", context=parent_email.body)
 
         if not new_body:
-            new_body = f"FYI.\n\n---------- Forwarded message ----------\nFrom: {parent_email.sender}\nDate: {parent_email.date}\nSubject: {parent_email.subject}\nTo: {', '.join(parent_email.recipients)}\n\n" + parent_email.body
+            new_body = f"FYI."
             if self.topic and random.random() < 0.3:
                  new_body = f"Thought you should see this regarding {self.topic}.\n\n" + new_body
+
+        # Include the full parent body
+        forward_block = f"---------- Forwarded message ----------\nFrom: {parent_email.sender}\nDate: {parent_email.date}\nSubject: {parent_email.subject}\nTo: {', '.join(parent_email.recipients)}\n\n{parent_email.body}"
+        
+        full_body = f"{new_body}\n\n{forward_block}"
 
         email = Email(
             sender=self.get_person_display(sender),
             recipients=[self.get_person_display(r) for r in recipients],
             subject=subject,
-            body=new_body,
+            body=full_body,
             date=self._tick_time(),
             message_id=None,
             parent_id=parent_email.message_id,
@@ -320,118 +345,69 @@ class ThreadGenerator:
             self.threads[email.thread_id] = []
         self.threads[email.thread_id].append(email)
 
-    def simulate(self, num_roots=5, max_steps=20):
-        # Create initial roots
-        for _ in range(num_roots):
-            self.create_root_email()
+    def simulate(self, max_steps=20):
+        # Create exactly one root email to start the thread
+        self.create_root_email()
             
-        # Iteratively evolve
+        # Build out the single thread with replies and occasional forwards
         for _ in range(max_steps):
-            # Pick a random thread
-            tid = random.choice(list(self.threads.keys()))
+            # We only have one thread, so get it
+            tid = list(self.threads.keys())[0]
             thread_msgs = self.threads[tid]
             
-            # Pick a random message to act upon (simulating branching)
-            # Bias towards recent messages to simulate active conversation, but allow old replies
+            # Pick a message to reply to - heavily bias towards most recent for realistic threading
+            # 80% chance to reply to the most recent, 20% chance to reply to an older message (branching)
             parent = thread_msgs[-1] if random.random() > 0.2 else random.choice(thread_msgs)
             
-            action = random.choices(["reply", "forward", "nothing"], weights=[0.6, 0.1, 0.3])[0]
+            # Action weights: 80% reply, 10% forward, 10% skip (to add variation in timing)
+            action = random.choices(["reply", "forward", "nothing"], weights=[0.8, 0.1, 0.1])[0]
+            
+            # Convert forward to reply if no new recipients available (like syndata)
+            if action == "forward" and not self._can_forward_to_new_recipients(tid):
+                action = "reply"
             
             if action == "reply":
                 self.reply_to(parent)
             elif action == "forward":
                 self.forward(parent)
-            else:
-                # Start a new root thread occasionally
-                if random.random() < 0.1:
-                    self.create_root_email()
 
-def save_as_eml(email_obj, output_dir="output"):
-    msg = EmailMessage()
-    msg['Subject'] = email_obj.subject
-    msg['From'] = email_obj.sender
-    msg['To'] = ", ".join(email_obj.recipients)
-    msg['Date'] = formatdate(email_obj.date.timestamp())
-    msg['Message-ID'] = email_obj.message_id
-    
-    # Add CC if present (for reply-all)
-    if email_obj.cc:
-        msg['Cc'] = ", ".join(email_obj.cc)
-    
-    if email_obj.in_reply_to:
-        msg['In-Reply-To'] = email_obj.in_reply_to
-    
-    if email_obj.references:
-        msg['References'] = " ".join(email_obj.references)
-        
-    msg.set_content(email_obj.body)
+def save_as_markdown(email_obj, output_dir="output", index=0):
+    # Create safe subject for filename
+    safe_subject = "".join([c if c.isalnum() else "_" for c in email_obj.subject])[:40]
+    filename = f"{index:04d}_{safe_subject}.md"
+    filepath = os.path.join(output_dir, filename)
 
-    
-    # Add attachments
+    # Handle Attachments (move/rename them)
+    att_list = []
     for att in email_obj.attachments:
-        # Check if file exists (it should)
         if os.path.exists(att.filepath):
-            with open(att.filepath, 'rb') as f:
-                file_data = f.read()
-                maintype, subtype = att.content_type.split('/', 1)
-                msg.add_attachment(file_data, maintype=maintype, subtype=subtype, filename=att.filename)
-    
-    # Save to file
-    # Use a safe filename
-    safe_subject = "".join([c if c.isalnum() else "_" for c in email_obj.subject])[:30]
-    filename = f"{email_obj.date.strftime('%Y%m%d_%H%M')}_{safe_subject}_{email_obj.id[:6]}.eml"
-    filepath = os.path.join(output_dir, filename)
-    
-    with open(filepath, 'wb') as f:
-        f.write(msg.as_bytes())
-    return filepath
+            att_ext = os.path.splitext(att.filename)[1]
+            att_base = os.path.splitext(att.filename)[0]
+            new_att_name = f"{index:04d}_{safe_subject}_attachment_{att_base}{att_ext}"
+            new_att_path = os.path.join(output_dir, new_att_name)
+            
+            if not os.path.exists(new_att_path) and os.path.exists(att.filepath):
+                import shutil
+                shutil.copy(att.filepath, new_att_path)
+            
+            att_list.append(new_att_name)
+        else:
+            att_list.append(att.filename) # Just list name if file missing
 
-def save_as_printed_pdf(email_obj, output_dir="output"):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    
-    # Use standard font (Helvetica)
-    pdf.set_font("helvetica", size=11)
-    
-    def clean_text(text):
-        # FPDF standard fonts only support Latin-1. Replace unsupported chars.
-        return text.encode('latin-1', 'replace').decode('latin-1')
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(f"**From:** {email_obj.sender}\n")
+        f.write(f"**Date:** {email_obj.date.strftime('%A, %B %d, %Y %I:%M %p')}\n")
+        f.write(f"**To:** {', '.join(email_obj.recipients)}\n")
+        if email_obj.cc:
+            f.write(f"**Cc:** {', '.join(email_obj.cc)}\n")
+        f.write(f"**Subject:** {email_obj.subject}\n")
+        
+        if att_list:
+             f.write(f"**Attachments:** {', '.join(att_list)}\n")
+        
+        f.write("\n---\n\n")
+        f.write(email_obj.body)
 
-    # Headers
-    headers = [
-        ("From", email_obj.sender),
-        ("Sent", email_obj.date.strftime("%A, %B %d, %Y %I:%M %p")),
-        ("To", ", ".join(email_obj.recipients)),
-        ("Subject", email_obj.subject),
-    ]
-    
-    if email_obj.attachments:
-        att_list = ", ".join([att.filename for att in email_obj.attachments])
-        headers.append(("Attachments", att_list))
-    
-    for label, value in headers:
-        pdf.set_font("helvetica", 'B', 11)
-        pdf.write(6, f"{label}: ")
-        
-        pdf.set_font("helvetica", '', 11)
-        pdf.write(6, clean_text(value) + "\n")
-        
-    pdf.ln(2)
-    # Draw separator line
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(6)
-    
-    # Body
-    pdf.set_font("helvetica", size=11)
-    pdf.multi_cell(0, 5, text=clean_text(email_obj.body))
-    
-    # Save to file
-    safe_subject = "".join([c if c.isalnum() else "_" for c in email_obj.subject])[:30]
-    filename = f"{email_obj.date.strftime('%Y%m%d_%H%M')}_{safe_subject}_{email_obj.id[:6]}_printed.pdf"
-    filepath = os.path.join(output_dir, filename)
-    
-    pdf.output(filepath)
     return filepath
 
 if __name__ == "__main__":
@@ -445,15 +421,15 @@ if __name__ == "__main__":
     try:
         print("Starting generator...", flush=True)
         parser = argparse.ArgumentParser()
-        parser.add_argument("--roots", type=int, default=5, help="Number of root threads")
-        parser.add_argument("--steps", type=int, default=20, help="Number of simulation steps")
+        parser.add_argument("--steps", type=int, default=20, help="Number of emails to generate in the thread")
         parser.add_argument("--output", type=str, default="output", help="Output directory")
         parser.add_argument("--topic", type=str, default=None, help="Topic to focus on")
         parser.add_argument("--attachments", type=int, default=30, help="Percentage of emails with attachments (0-100)")
-        parser.add_argument("--pdf", action="store_true", help="Generate printed PDF versions of emails")
         parser.add_argument("--roster", type=str, default="roster.json", help="Path to roster file")
         parser.add_argument("--gemini", action="store_true", help="Use Gemini LLM for email generation")
         parser.add_argument("--model", type=str, default="gemini-1.5-flash", help="Gemini model to use")
+        # Kept for compatibility but ignored/removed
+        parser.add_argument("--pdf", action="store_true", help="Ignored") 
         args = parser.parse_args()
 
         # Handle Roster
@@ -501,24 +477,31 @@ if __name__ == "__main__":
         print(f"Output folder: {run_output_dir}", flush=True)
 
         gen = ThreadGenerator(roster=roster, llm=llm, output_dir=run_output_dir, topic=args.topic, attachment_percent=args.attachments)
-        print(f"Simulating email traffic with {args.roots} roots and {args.steps} steps...", flush=True)
+        print(f"Generating email thread with {args.steps} messages...", flush=True)
         print(f"Attachment rate: {args.attachments}%", flush=True)
         if args.topic:
             print(f"Topic: {args.topic}", flush=True)
 
             
-        gen.simulate(num_roots=args.roots, max_steps=args.steps)
+        gen.simulate(max_steps=args.steps)
         
         print(f"Generated {len(gen.emails)} emails.", flush=True)
-        for email_obj in gen.emails:
-            eml_path = save_as_eml(email_obj, gen.file_gen.output_dir)
-            msg = f"Saved: {eml_path}"
+        all_attachments = set()
+        for idx, email_obj in enumerate(gen.emails, start=1):
+            for att in email_obj.attachments:
+                all_attachments.add(att.filepath)
+                
+            md_path = save_as_markdown(email_obj, gen.file_gen.output_dir, index=idx)
             
-            if args.pdf:
-                pdf_path = save_as_printed_pdf(email_obj, gen.file_gen.output_dir)
-                msg += f" & {os.path.basename(pdf_path)}"
+            print(f"Saved: {md_path}", flush=True)
             
-            print(msg, flush=True)
+        # Cleanup original unnumbered attachment files
+        for att_path in all_attachments:
+            if os.path.exists(att_path):
+                try:
+                    os.remove(att_path)
+                except Exception as e:
+                    print(f"Warning: Could not remove original attachment {att_path}: {e}")
             
     except Exception as e:
         print(f"\nCRITICAL ERROR: {e}", file=sys.stderr)

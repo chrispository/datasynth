@@ -31,6 +31,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Run app
     let res = run_app(&mut terminal, &mut app).await;
+    
+    // Save settings before exiting
+    app.save_settings();
 
     // Restore terminal
     disable_raw_mode()?;
@@ -73,15 +76,31 @@ async fn run_app<B: ratatui::backend::Backend>(
                     }
                     KeyCode::Up => app.navigate_up(),
                     KeyCode::Down => app.navigate_down(),
-                    KeyCode::Right | KeyCode::Enter => {
-                        if app.focus == Focus::Sidebar {
+                    KeyCode::Right => {
+                         if app.focus == Focus::Sidebar {
                             app.navigate_right();
-                        } else if app.focus == Focus::Main && app.current_section == Section::Topics {
-                            app.select_topic();
-                        } else if app.focus == Focus::Main && app.current_section == Section::Companies {
-                            app.generate_companies();
-                        } else if app.focus == Focus::Main && app.current_section == Section::Run {
-                            app.start_generation();
+                        }
+                    }
+                    KeyCode::Enter => {
+                        if app.focus == Focus::Main {
+                             if app.current_section == Section::Topics {
+                                app.select_topic();
+                            } else if app.current_section == Section::Companies {
+                                app.generate_companies();
+                            } else if app.current_section == Section::Run {
+                                app.start_generation();
+                            } else if app.current_section == Section::Convert {
+                                if app.convert_active_area == 2 {
+                                    app.start_conversion();
+                                }
+                            }
+                        }
+                    }
+                    KeyCode::Tab => {
+                        if app.focus == Focus::Main && app.current_section == Section::Topics {
+                            app.cycle_topic_panel();
+                        } else if app.focus == Focus::Main && app.current_section == Section::Convert {
+                            app.convert_active_area = (app.convert_active_area + 1) % 3;
                         }
                     }
                     KeyCode::Left => app.navigate_left(),
@@ -93,6 +112,11 @@ async fn run_app<B: ratatui::backend::Backend>(
                     KeyCode::Char(' ') if app.focus == Focus::Main && app.current_section == Section::Topics => {
                         app.select_topic();
                     }
+                    KeyCode::Char(' ') if app.focus == Focus::Main && app.current_section == Section::Convert => {
+                        if app.convert_active_area == 1 {
+                            app.convert_combine = !app.convert_combine;
+                        }
+                    }
                     KeyCode::Char('s') if app.focus == Focus::Main && app.current_section == Section::Run => {
                         app.start_generation();
                     }
@@ -102,6 +126,9 @@ async fn run_app<B: ratatui::backend::Backend>(
                     }
                     KeyCode::Char('-') | KeyCode::Char('_') if app.focus == Focus::Main && app.current_section == Section::Quantity => {
                         app.decrement_quantity();
+                    }
+                    KeyCode::Backspace | KeyCode::Delete if app.focus == Focus::Main && app.current_section == Section::Topics => {
+                        app.remove_selected_topic();
                     }
                     _ => {}
                 }
