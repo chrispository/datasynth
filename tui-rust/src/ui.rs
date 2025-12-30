@@ -320,25 +320,48 @@ fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_companies_section(f: &mut Frame, app: &App, area: Rect) {
+    let is_focused = app.focus == Focus::Main;
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(0)])
+        .split(area);
+
+    // Generate button
+    let generate_highlight = is_focused;
+    let generate_btn = Paragraph::new(" [ Generate New Companies ] ")
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(if generate_highlight {
+                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::Gray)
+                }),
+        )
+        .alignment(ratatui::layout::Alignment::Center);
+    f.render_widget(generate_btn, chunks[0]);
+
+    // Companies display area
+    let companies_area = chunks[1];
+
     if app.companies.is_empty() {
         let text = vec![
             Line::from(Span::styled("No companies generated yet.", Style::default().fg(Color::Yellow))),
             Line::from(""),
-            Line::from(Span::styled("[Enter] Generate 2 Random Companies", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))),
-            Line::from(""),
-            Line::from(Span::styled("(Press Enter to generate companies with randomized employees)", Style::default().fg(Color::DarkGray))),
+            Line::from(Span::styled("Press Enter above to generate 2 random companies", Style::default().fg(Color::DarkGray))),
         ];
         let paragraph = Paragraph::new(text);
-        f.render_widget(paragraph, area);
+        f.render_widget(paragraph, companies_area);
         return;
     }
 
     // Split area horizontally for 2 companies
-    let chunks = Layout::default()
+    let company_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(area);
-    
+        .split(companies_area);
+
     for (idx, company) in app.companies.iter().take(2).enumerate() {
         let mut lines = vec![
             Line::from(Span::styled(&company.company_name, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
@@ -346,28 +369,21 @@ fn render_companies_section(f: &mut Frame, app: &App, area: Rect) {
             Line::from(""),
             Line::from(Span::styled("Employees:", Style::default().add_modifier(Modifier::UNDERLINED))),
         ];
-        
-        for emp in company.employees.iter().take(8) {
+
+        for emp in &company.employees {
             lines.push(Line::from(vec![
                 Span::styled(format!("  {} ", emp.name), Style::default().fg(Color::White)),
                 Span::styled(format!("({})", emp.title), Style::default().fg(Color::DarkGray)),
             ]));
         }
         
-        if company.employees.len() > 8 {
-            lines.push(Line::from(Span::styled(
-                format!("  ... and {} more", company.employees.len() - 8),
-                Style::default().fg(Color::DarkGray)
-            )));
-        }
-        
         let block = Block::default()
             .title(format!(" Company {} ", idx + 1))
             .borders(Borders::ALL)
             .border_style(Style::default().fg(if idx == 0 { Color::Cyan } else { Color::Magenta }));
-        
+
         let paragraph = Paragraph::new(lines).block(block);
-        f.render_widget(paragraph, chunks[idx]);
+        f.render_widget(paragraph, company_chunks[idx]);
     }
 }
 

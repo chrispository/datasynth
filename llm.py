@@ -31,14 +31,47 @@ class GeminiGenerator:
             return None
 
     def generate_email(self, sender, recipients, topic, context=None):
+        import random
+        styles = [
+            "direct and concise",
+            "formal and detailed",
+            "casual and friendly",
+            "slightly urgent",
+            "inquisitive",
+            "collaborative",
+            "apologetic but firm",
+            "enthusiastic"
+        ]
+        style = random.choice(styles)
+        
         prompt = f"""
-        Generate a professional email.
+        Generate a professional business email.
         Sender: {sender['name']} ({sender['title']} in {sender['department']})
         Recipients: {', '.join([r['name'] for r in recipients])}
         Topic: {topic}
+        Style/Tone: {style}
         """
+        
         if context:
-            prompt += f"\nContext/Previous Thread:\n{context}"
+            prompt += f"""
+            
+            CONTEXT (Previous Email Thread):
+            {context}
+            
+            INSTRUCTIONS:
+            1. You are replying to the email above.
+            2. Address specific points raised in the context.
+            3. Do NOT repeat the full context or history. Write ONLY the new body text of your reply.
+            4. Keep the subject consistent with the thread (Re: ...) but if this is a new thread, create a specific, interesting subject line (avoid "General check-in").
+            """
+        else:
+            prompt += f"""
+            
+            INSTRUCTIONS:
+            1. This is the start of a new email thread.
+            2. Create a specific, interesting Subject line relevant to the topic (avoid generic titles like "Update" or "Hello").
+            3. Write the body of the email initiating the discussion.
+            """
         
         prompt += "\n\nPlease provide the email in the following format:\nSubject: [Subject]\n\n[Body]"
         
@@ -48,10 +81,22 @@ class GeminiGenerator:
             lines = content.strip().split('\n')
             subject = "No Subject"
             body = content
+            
+            # Find subject line
+            subject_found = False
             for i, line in enumerate(lines):
                 if line.lower().startswith("subject:"):
                     subject = line[len("subject:"):].strip()
+                    # If it's a reply and the LLM generated a new subject, we might ignore it in the caller, 
+                    # but here we just return what we found.
+                    # The body is everything after this line
                     body = '\n'.join(lines[i+1:]).strip()
+                    subject_found = True
                     break
+            
+            if not subject_found:
+                # If no subject line found, assume all text is body and subject is generic (or handled by caller)
+                body = content
+                
             return subject, body
         return None, None

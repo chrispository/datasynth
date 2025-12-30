@@ -256,11 +256,17 @@ impl App {
                 1 => {
                     if self.topic_cursor > 0 {
                         self.topic_cursor -= 1;
+                    } else if self.topic_cursor == 0 {
+                        // At top of list, go back to load button
+                        self.topic_panel = 0;
                     }
                 }
                 2 => {
                     if self.selected_topic_cursor > 0 {
                         self.selected_topic_cursor -= 1;
+                    } else if self.selected_topic_cursor == 0 {
+                        // At top of list, go back to generated panel
+                        self.topic_panel = 1;
                     }
                 }
                 _ => {}
@@ -304,12 +310,19 @@ impl App {
                 1 => {
                     if self.topic_cursor < self.generated_topics.len().saturating_sub(1) {
                         self.topic_cursor += 1;
+                    } else if self.generated_topics.len() > 0 && self.topic_cursor == self.generated_topics.len() - 1 {
+                        // At bottom of list, go to selected panel if it has topics
+                        if !self.selected_topics.is_empty() {
+                            self.topic_panel = 2;
+                            self.selected_topic_cursor = 0;
+                        }
                     }
                 }
                 2 => {
                     if self.selected_topic_cursor < self.selected_topics.len().saturating_sub(1) {
                         self.selected_topic_cursor += 1;
                     }
+                    // At bottom of selected list - stay there (it's the last panel)
                 }
                 _ => {}
             }
@@ -354,14 +367,34 @@ impl App {
     }
     
     pub fn load_topics_from_file(&mut self) {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
         match std::fs::read_to_string("topics.txt") {
             Ok(content) => {
-                self.generated_topics = content
+                let mut all_topics: Vec<String> = content
                     .lines()
                     .map(|s| s.trim().to_string())
                     .filter(|s| !s.is_empty())
                     .collect();
-                self.log(format!("Loaded {} topics from file", self.generated_topics.len()));
+
+                // Shuffle topics based on current time for randomization
+                let seed = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos() as u64;
+
+                // Fisher-Yates shuffle
+                for i in (1..all_topics.len()).rev() {
+                    let mut hasher = DefaultHasher::new();
+                    (seed + i as u64).hash(&mut hasher);
+                    let j = (hasher.finish() as usize) % (i + 1);
+                    all_topics.swap(i, j);
+                }
+
+                // Take first 25 topics
+                self.generated_topics = all_topics.into_iter().take(25).collect();
+                self.log(format!("Randomly selected {} topics from file", self.generated_topics.len()));
             }
             Err(e) => {
                 self.log(format!("Error loading topics.txt: {}", e));
