@@ -64,10 +64,16 @@ class FileGenerator:
                 prompt += f". Context from related email thread: {context}"
             prompt += """. 
 
-IMPORTANT: This is a standalone business document (Word/PDF attachment), NOT an email. 
-Do not include any email language like greetings, signatures, "Dear", "Best regards", "From:", "To:", etc.
-Make sure to use appropriate headings and sections where needed.
-Keep it under 750 words. Write only the document content."""
+CRITICAL RULES - This is a standalone business document (Word/PDF attachment), NOT AN EMAIL:
+- NO email headers or metadata (no "Date:", "From:", "To:", "Subject:", "Re:", etc.)
+- NO email greetings or signatures ("Dear", "Hi", "Best regards", "Sincerely", etc.)
+- NO date headers at the top of the document
+- NO "Prepared by" or "Prepared for" lines
+- NO document metadata blocks
+
+FORMAT: Start directly with the document title/heading, then the content.
+Use appropriate headings, bullet points, and sections as needed for a professional business document.
+Keep it under 750 words. Write ONLY the document content."""
 
             content = self.llm.generate_email_content(prompt)
             if content:
@@ -91,9 +97,45 @@ Keep it under 750 words. Write only the document content."""
 
         return fake.text(max_nb_chars=1000)
 
+    def _generate_document_title(self, doc_type, context=None):
+        """Generate a professional document title using LLM or fallback."""
+        if self.llm:
+            prompt = f"""Generate a short, professional document filename (no extension) for a {doc_type}.
+Context: {self.topic if self.topic else 'general business'}
+Rules:
+- Use 2-5 words maximum
+- Use Title_Case_With_Underscores
+- No dates, no special characters, no spaces
+- Examples: Quarterly_Budget_Analysis, Project_Proposal, Meeting_Notes, Vendor_Agreement
+Return ONLY the filename, nothing else."""
+            title = self.llm.generate_email_content(prompt)
+            if title:
+                # Clean up any extra whitespace or quotes
+                title = title.strip().strip('"').strip("'").strip()
+                # Ensure proper formatting
+                title = "_".join(word.capitalize() for word in title.replace("_", " ").split())
+                # Remove any remaining non-alphanumeric chars except underscores
+                title = "".join(c if c.isalnum() or c == "_" else "" for c in title)
+                if title:
+                    return title
+        
+        # Fallback: combine topic and doc_type
+        if self.topic:
+            # Take first 2-3 words of topic
+            words = self.topic.split()[:3]
+            topic_part = "_".join(w.capitalize() for w in words)
+            topic_part = "".join(c if c.isalnum() or c == "_" else "" for c in topic_part)
+            doc_type_cap = doc_type.capitalize()
+            return f"{topic_part}_{doc_type_cap}"
+        
+        # Ultimate fallback
+        return f"Business_{doc_type.capitalize()}"
+
     def generate_random_file(self, base_name, doc_type="document", context=None):
         ext = random.choice(["pdf", "docx"])
-        filename = f"{base_name}.{ext}"
+        # Generate a clean, professional document title
+        doc_title = self._generate_document_title(doc_type, context)
+        filename = f"{doc_title}.{ext}"
         content = self._generate_content(doc_type, context)
 
         if ext == "pdf":
@@ -522,7 +564,8 @@ def save_as_markdown(email_obj, output_dir="output", index=0):
         if os.path.exists(att.filepath):
             att_ext = os.path.splitext(att.filename)[1]
             att_base = os.path.splitext(att.filename)[0]
-            new_att_name = f"{index:04d}_{safe_subject}_attachment_{att_base}{att_ext}"
+            # Use Bates-style prefix with the original clean document name
+            new_att_name = f"{index:04d}_{att_base}{att_ext}"
             new_att_path = os.path.join(output_dir, new_att_name)
 
             if not os.path.exists(new_att_path) and os.path.exists(att.filepath):
@@ -588,7 +631,7 @@ if __name__ == "__main__":
             "--gemini", action="store_true", help="Use Gemini LLM for email generation"
         )
         parser.add_argument(
-            "--model", type=str, default="gemini-1.5-flash", help="Gemini model to use"
+            "--model", type=str, default="gemini-2.5-flash", help="Gemini model to use"
         )
         # Kept for compatibility but ignored/removed
         parser.add_argument("--pdf", action="store_true", help="Ignored")
