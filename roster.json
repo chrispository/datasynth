@@ -3,62 +3,62 @@
   "domain": "quantuminnovations.com",
   "employees": [
     {
-      "name": "Isabella Garcia",
-      "email": "isabella.garcia@quantuminnovations.com",
+      "name": "Nia Johnson",
+      "email": "nia.johnson@quantuminnovations.com",
       "department": "Engineering",
       "title": "Manager"
-    },
-    {
-      "name": "Thomas Anderson",
-      "email": "thomas.anderson@quantuminnovations.com",
-      "department": "Marketing",
-      "title": "Specialist"
-    },
-    {
-      "name": "Chinwe Okoro",
-      "email": "chinwe.okoro@quantuminnovations.com",
-      "department": "Sales",
-      "title": "Director"
-    },
-    {
-      "name": "James Williams",
-      "email": "james.williams@quantuminnovations.com",
-      "department": "HR",
-      "title": "Lead"
     },
     {
       "name": "Diego Fernandez",
       "email": "diego.fernandez@quantuminnovations.com",
-      "department": "Finance",
-      "title": "Associate"
-    },
-    {
-      "name": "Michael Davis",
-      "email": "michael.davis@quantuminnovations.com",
-      "department": "Legal",
-      "title": "Senior Engineer"
-    },
-    {
-      "name": "Joseph Taylor",
-      "email": "joseph.taylor@quantuminnovations.com",
-      "department": "Product",
-      "title": "VP"
-    },
-    {
-      "name": "Olivia Martinez",
-      "email": "olivia.martinez@quantuminnovations.com",
-      "department": "Engineering",
-      "title": "Manager"
-    },
-    {
-      "name": "David Miller",
-      "email": "david.miller@quantuminnovations.com",
       "department": "Marketing",
       "title": "Specialist"
     },
     {
-      "name": "Fatima Al-Farsi",
-      "email": "fatima.al-farsi@quantuminnovations.com",
+      "name": "Robert Brown",
+      "email": "robert.brown@quantuminnovations.com",
+      "department": "Sales",
+      "title": "Director"
+    },
+    {
+      "name": "Joseph Taylor",
+      "email": "joseph.taylor@quantuminnovations.com",
+      "department": "HR",
+      "title": "Lead"
+    },
+    {
+      "name": "Mohammed Ali",
+      "email": "mohammed.ali@quantuminnovations.com",
+      "department": "Finance",
+      "title": "Associate"
+    },
+    {
+      "name": "William Wilson",
+      "email": "william.wilson@quantuminnovations.com",
+      "department": "Legal",
+      "title": "Senior Engineer"
+    },
+    {
+      "name": "Maria Rodriguez",
+      "email": "maria.rodriguez@quantuminnovations.com",
+      "department": "Product",
+      "title": "VP"
+    },
+    {
+      "name": "Michael Davis",
+      "email": "michael.davis@quantuminnovations.com",
+      "department": "Engineering",
+      "title": "Manager"
+    },
+    {
+      "name": "Charles Jackson",
+      "email": "charles.jackson@quantuminnovations.com",
+      "department": "Marketing",
+      "title": "Specialist"
+    },
+    {
+      "name": "Thomas Anderson",
+      "email": "thomas.anderson@quantuminnovations.com",
       "department": "Sales",
       "title": "Director"
     }

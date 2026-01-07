@@ -284,10 +284,11 @@ class PDFConverter:
 
 
 def combine_files(folder_path, output_file):
-    # Find all numbered files
+    # Find all numbered files (matches 0001a_, 0001b_, etc.)
     files = []
     for f in os.listdir(folder_path):
-        match = re.match(r"^(\d{4})_", f)
+        # Match pattern: NNNN followed by optional letter (a/b), then underscore
+        match = re.match(r"^(\d{4}[a-z]?)_", f)
         if match:
             files.append((match.group(1), f))
 
