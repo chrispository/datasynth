@@ -1,64 +1,64 @@
 {
-  "company_name": "Quantum Innovations",
-  "domain": "quantuminnovations.com",
+  "company_name": "Global Solutions Inc.",
+  "domain": "globalsolutions.com",
   "employees": [
     {
-      "name": "Nia Johnson",
-      "email": "nia.johnson@quantuminnovations.com",
+      "name": "David Miller",
+      "email": "david.miller@globalsolutions.com",
       "department": "Engineering",
       "title": "Manager"
     },
     {
-      "name": "Diego Fernandez",
-      "email": "diego.fernandez@quantuminnovations.com",
+      "name": "William Wilson",
+      "email": "william.wilson@globalsolutions.com",
       "department": "Marketing",
       "title": "Specialist"
     },
     {
-      "name": "Robert Brown",
-      "email": "robert.brown@quantuminnovations.com",
+      "name": "Chinwe Okoro",
+      "email": "chinwe.okoro@globalsolutions.com",
       "department": "Sales",
       "title": "Director"
     },
     {
-      "name": "Joseph Taylor",
-      "email": "joseph.taylor@quantuminnovations.com",
+      "name": "Yaa Asantewaa",
+      "email": "yaa.asantewaa@globalsolutions.com",
       "department": "HR",
       "title": "Lead"
     },
     {
-      "name": "Mohammed Ali",
-      "email": "mohammed.ali@quantuminnovations.com",
+      "name": "Fatima Al-Farsi",
+      "email": "fatima.al-farsi@globalsolutions.com",
       "department": "Finance",
       "title": "Associate"
     },
     {
-      "name": "William Wilson",
-      "email": "william.wilson@quantuminnovations.com",
+      "name": "Thomas Anderson",
+      "email": "thomas.anderson@globalsolutions.com",
       "department": "Legal",
       "title": "Senior Engineer"
     },
     {
-      "name": "Maria Rodriguez",
-      "email": "maria.rodriguez@quantuminnovations.com",
+      "name": "Mohammed Ali",
+      "email": "mohammed.ali@globalsolutions.com",
       "department": "Product",
       "title": "VP"
     },
     {
-      "name": "Michael Davis",
-      "email": "michael.davis@quantuminnovations.com",
+      "name": "Carlos Mendoza",
+      "email": "carlos.mendoza@globalsolutions.com",
       "department": "Engineering",
       "title": "Manager"
     },
     {
-      "name": "Charles Jackson",
-      "email": "charles.jackson@quantuminnovations.com",
+      "name": "Nia Johnson",
+      "email": "nia.johnson@globalsolutions.com",
       "department": "Marketing",
       "title": "Specialist"
     },
     {
-      "name": "Thomas Anderson",
-      "email": "thomas.anderson@quantuminnovations.com",
+      "name": "Joseph Taylor",
+      "email": "joseph.taylor@globalsolutions.com",
       "department": "Sales",
       "title": "Director"
     }

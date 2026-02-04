@@ -11,7 +11,9 @@ import sys
 import random
 import datetime
 import argparse
+import re
 import traceback
+import logging
 from dotenv import load_dotenv
 
 from models import ThreadGenerator, Attachment, save_as_markdown
@@ -106,7 +108,25 @@ def main():
 
         run_output_dir = os.path.join(args.output, folder_name)
         os.makedirs(run_output_dir, exist_ok=True)
-        print(f"Output folder: {run_output_dir}", flush=True)
+
+        # Clean previous numbered files so re-runs don't interleave
+        for old_file in os.listdir(run_output_dir):
+            if re.match(r"^\d{4}[a-z]?_", old_file):
+                os.remove(os.path.join(run_output_dir, old_file))
+
+        # Initialize logging
+        log_file = os.path.join(run_output_dir, "generator.log")
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s [%(levelname)s] %(message)s",
+            handlers=[
+                logging.FileHandler(log_file),
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+        
+        logging.info(f"Starting generator...")
+        logging.info(f"Output folder: {run_output_dir}")
 
         gen = ThreadGenerator(
             roster=roster,
@@ -122,14 +142,14 @@ def main():
             print(f"Warning: --steps is deprecated, use --files instead", flush=True)
             target_files = args.steps
 
-        print(f"Generating {target_files} inclusive email threads...", flush=True)
-        print(f"Attachment rate: {args.attachments}%", flush=True)
+        logging.info(f"Generating {target_files} inclusive email threads...")
+        logging.info(f"Attachment rate: {args.attachments}%")
         if args.topic:
-            print(f"Topic: {args.topic}", flush=True)
+            logging.info(f"Topic: {args.topic}")
 
         gen.simulate(target_inclusive=target_files)
 
-        print(f"Generated {len(gen.emails)} emails.", flush=True)
+        logging.info(f"Generated {len(gen.emails)} emails.")
 
         # Find all emails that are parents of other emails (non-inclusive)
         parent_message_ids = set()
@@ -141,16 +161,18 @@ def main():
         inclusive_emails = [
             e for e in gen.emails if e.message_id not in parent_message_ids
         ]
-        print(f"Inclusive (leaf) emails: {len(inclusive_emails)}", flush=True)
+        logging.info(f"Inclusive (leaf) emails: {len(inclusive_emails)}")
 
         # Sort inclusive emails by thread_id first, then by date
         inclusive_emails.sort(key=lambda e: (e.thread_id, e.date))
 
         # Save inclusive emails with attachments
         all_attachments = set()
+        logging.info(f"Saving {len(inclusive_emails)} inclusive emails...")
         inclusive_idx = 0
         for email_obj in inclusive_emails:
             inclusive_idx += 1
+            logging.info(f"[{inclusive_idx}/{len(inclusive_emails)}] Processing email: {email_obj.subject}")
 
             # Generate attachment for this inclusive email based on percentage
             if random.random() < args.attachments / 100.0:
@@ -159,9 +181,11 @@ def main():
                 )[:40]
                 doc_types = ["report", "proposal", "notes", "analysis", "summary"]
                 doc_type = random.choice(doc_types)
+                logging.info(f"  Generating attachment (type: {doc_type})...")
                 filepath = gen.file_gen.generate_random_file(
                     safe_subject, doc_type=doc_type, context=email_obj.body[:200]
                 )
+                logging.info(f"  Attachment generated: {filepath}")
                 filename = os.path.basename(filepath)
                 ctype = (
                     "application/pdf"
@@ -177,7 +201,7 @@ def main():
                 email_obj, gen.file_gen.output_dir, index=inclusive_idx
             )
 
-            print(f"Saved: {md_path}", flush=True)
+            logging.info(f"Saved: {md_path}")
 
         # Cleanup original unnumbered attachment files
         for att_path in all_attachments:
@@ -190,8 +214,8 @@ def main():
                     )
 
     except Exception as e:
-        print(f"\nCRITICAL ERROR: {e}", file=sys.stderr)
-        traceback.print_exc(file=sys.stderr)
+        logging.error(f"CRITICAL ERROR: {e}")
+        logging.error(traceback.format_exc())
         sys.exit(1)
 
 

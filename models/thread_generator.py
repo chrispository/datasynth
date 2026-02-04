@@ -5,6 +5,7 @@ Thread generator for simulating realistic email threads.
 import os
 import random
 import datetime
+import logging
 from faker import Faker
 
 from .email import Email, Attachment, parse_display
@@ -40,6 +41,8 @@ class ThreadGenerator:
     ):
         self.emails = []  # Flat list of all emails generated
         self.threads = {}  # Map thread_id -> list of Email objects
+        self._replied_parent_ids = set()  # Track messages that have been replied to
+        self._used_subjects = []  # Track subjects to avoid duplicates
         self.current_date = (
             start_date
             if start_date
@@ -84,6 +87,10 @@ class ThreadGenerator:
 
     def _can_forward_to_new_recipients(self, thread_id):
         """Check if there are roster members not in the current thread."""
+        return len(self._get_available_recipients(thread_id)) > 0
+
+    def _get_available_recipients(self, thread_id):
+        """Get roster members not yet in the thread - useful for branching."""
         thread_participants = self._get_thread_participants(thread_id)
         participant_emails = set()
         for p in thread_participants:
@@ -92,10 +99,11 @@ class ThreadGenerator:
             else:
                 participant_emails.add(p)
 
-        for person in self.roster:
-            if person["email"] not in participant_emails:
-                return True
-        return False
+        return [p for p in self.roster if p["email"] not in participant_emails]
+
+    def _has_reply(self, message_id):
+        """Check if an email has already been replied to."""
+        return message_id in self._replied_parent_ids
 
     def create_root_email(self):
         """Create a new root email starting a fresh thread."""
@@ -109,7 +117,8 @@ class ThreadGenerator:
 
         if self.llm:
             subject, body = self.llm.generate_email(
-                sender, recipients, self.topic if self.topic else "General check-in"
+                sender, recipients, self.topic if self.topic else "General check-in",
+                used_subjects=self._used_subjects,
             )
 
         if not body:
@@ -129,6 +138,17 @@ class ThreadGenerator:
             else:
                 subject = fake.sentence(nb_words=4).rstrip(".")
                 body = fake.paragraph(nb_sentences=5)
+
+        # Dedup fallback: if subject exactly matches an existing one, add suffix
+        if subject and subject in self._used_subjects:
+            suffix = random.choice([
+                "- Follow Up", "- Continued", "- Revisited",
+                "- Additional Thoughts", "- Part II",
+            ])
+            subject = f"{subject} {suffix}"
+
+        if subject:
+            self._used_subjects.append(subject)
 
         email = Email(
             sender=self.get_person_display(sender),
@@ -327,10 +347,13 @@ class ThreadGenerator:
             self.threads[email.thread_id] = []
         self.threads[email.thread_id].append(email)
 
+        # Track that the parent has been replied to (prevents branching)
+        if email.parent_id:
+            self._replied_parent_ids.add(email.parent_id)
+
         inclusive_count = self._count_inclusive_emails()
-        print(
-            f"  [Progress] Total emails: {len(self.emails)} | Inclusive emails: {inclusive_count}",
-            flush=True,
+        logging.info(
+            f"  [Progress] Total emails: {len(self.emails)} | Inclusive emails: {inclusive_count}"
         )
 
     def _count_inclusive_emails(self):
@@ -360,6 +383,7 @@ class ThreadGenerator:
         self, target_inclusive=5, max_emails_per_thread=9, early_end_chance=0.15
     ):
         """Simulate multiple email threads until we have target_inclusive leaf emails."""
+        logging.info(f"Simulation started. Target: {target_inclusive} inclusive emails.")
 
         while self._count_inclusive_emails() < target_inclusive:
             # Create a new thread with a root email
@@ -384,12 +408,13 @@ class ThreadGenerator:
                 if len(thread_msgs) >= 2 and random.random() < early_end_chance:
                     break
 
-                # Pick a message to reply to - bias towards most recent
-                parent = (
-                    thread_msgs[-1]
-                    if random.random() > 0.2
-                    else random.choice(thread_msgs)
-                )
+                # Pick a message to reply to - always use most recent unreplied message
+                # to ensure linear threads (no branching with same recipients)
+                unreplied_msgs = [m for m in thread_msgs if not self._has_reply(m.message_id)]
+                if not unreplied_msgs:
+                    break  # All messages have replies, thread is complete
+                
+                parent = unreplied_msgs[-1]  # Most recent unreplied message
 
                 # Action weights: 80% reply, 10% forward, 10% skip
                 action = random.choices(
@@ -404,6 +429,8 @@ class ThreadGenerator:
                     self.reply_to(parent)
                 elif action == "forward":
                     self.forward(parent)
+        
+        logging.info("Simulation complete.")
 
 
 def save_as_markdown(email_obj, output_dir="output", index=0):

@@ -93,6 +93,10 @@ async fn run_app<B: ratatui::backend::Backend>(
                                 if app.convert_active_area == 2 {
                                     app.start_conversion();
                                 }
+                            } else if app.current_section == Section::Bates {
+                                if app.bates_active_area == 5 {
+                                    app.start_bates_stamp();
+                                }
                             }
                         }
                     }
@@ -101,6 +105,8 @@ async fn run_app<B: ratatui::backend::Backend>(
                             app.cycle_topic_panel();
                         } else if app.focus == Focus::Main && app.current_section == Section::Convert {
                             app.convert_active_area = (app.convert_active_area + 1) % 3;
+                        } else if app.focus == Focus::Main && app.current_section == Section::Bates {
+                            app.bates_active_area = (app.bates_active_area + 1) % 6;
                         }
                     }
                     KeyCode::Left => app.navigate_left(),
@@ -127,9 +133,35 @@ async fn run_app<B: ratatui::backend::Backend>(
                     KeyCode::Char('-') | KeyCode::Char('_') if app.focus == Focus::Main && app.current_section == Section::Quantity => {
                         app.decrement_quantity();
                     }
+                    // Bates field adjustment with + and -
+                    KeyCode::Char('+') | KeyCode::Char('=') if app.focus == Focus::Main && app.current_section == Section::Bates => {
+                        match app.bates_active_area {
+                            2 => app.bates_separator_index = (app.bates_separator_index + 1) % app::BATES_SEPARATORS.len(),
+                            3 => app.bates_start = app.bates_start.saturating_add(1),
+                            4 => app.bates_padding = (app.bates_padding + 1).min(12),
+                            _ => {}
+                        }
+                    }
+                    KeyCode::Char('-') | KeyCode::Char('_') if app.focus == Focus::Main && app.current_section == Section::Bates => {
+                        match app.bates_active_area {
+                            2 => app.bates_separator_index = if app.bates_separator_index == 0 { app::BATES_SEPARATORS.len() - 1 } else { app.bates_separator_index - 1 },
+                            3 => app.bates_start = app.bates_start.saturating_sub(1).max(1),
+                            4 => app.bates_padding = app.bates_padding.saturating_sub(1).max(1),
+                            _ => {}
+                        }
+                    }
                     KeyCode::Backspace | KeyCode::Delete if app.focus == Focus::Main && app.current_section == Section::Topics => {
                         app.remove_selected_topic();
                     }
+                    KeyCode::Backspace | KeyCode::Delete if app.focus == Focus::Main && app.current_section == Section::Bates && app.bates_active_area == 1 => {
+                        app.bates_prefix.pop();
+                    }
+                    KeyCode::Char(c) if app.focus == Focus::Main && app.current_section == Section::Bates && app.bates_active_area == 1 && app.bates_prefix.len() < 20 => {
+                        app.bates_prefix.push(c);
+                    }
+                    // Log scrolling
+                    KeyCode::PageUp => app.scroll_logs_up(),
+                    KeyCode::PageDown => app.scroll_logs_down(),
                     _ => {}
                 }
             }

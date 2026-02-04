@@ -30,7 +30,7 @@ class GeminiGenerator:
             print(f" Failed. Error generating content with Gemini: {e}")
             return None
 
-    def generate_email(self, sender, recipients, topic, context=None):
+    def generate_email(self, sender, recipients, topic, context=None, used_subjects=None):
         import random
         styles = [
             "direct and concise",
@@ -66,11 +66,16 @@ class GeminiGenerator:
             """
         else:
             prompt += f"""
-            
+
             INSTRUCTIONS:
             1. This is the start of a new email thread.
             2. Create a specific, interesting Subject line relevant to the topic (avoid generic titles like "Update" or "Hello").
             3. Write the body of the email initiating the discussion.
+            """
+            if used_subjects:
+                prompt += f"""
+            4. IMPORTANT: Do NOT reuse or closely resemble any of these previously used subjects: {used_subjects}
+               Each new thread MUST have a distinctly different subject line.
             """
         
         prompt += "\n\nPlease provide the email in the following format:\nSubject: [Subject]\n\n[Body]"

@@ -1,121 +1,55 @@
 {
-  "selected_model_index": 3,
-  "total_files": 55,
-  "percent_attachments": 35,
+  "selected_model_index": 0,
+  "total_files": 175,
+  "percent_attachments": 15,
   "selected_topics": [
-    "Education Learning Management Systems"
+    "Robotics Simultaneous Localization Mapping"
   ],
   "company_size": 10,
   "companies": [
-    {
-      "company_name": "Quantum Innovations",
-      "domain": "quantuminnovations.com",
-      "employees": [
-        {
-          "name": "Nia Johnson",
-          "email": "nia.johnson@quantuminnovations.com",
-          "department": "Engineering",
-          "title": "Manager"
-        },
-        {
-          "name": "Diego Fernandez",
-          "email": "diego.fernandez@quantuminnovations.com",
-          "department": "Marketing",
-          "title": "Specialist"
-        },
-        {
-          "name": "Robert Brown",
-          "email": "robert.brown@quantuminnovations.com",
-          "department": "Sales",
-          "title": "Director"
-        },
-        {
-          "name": "Joseph Taylor",
-          "email": "joseph.taylor@quantuminnovations.com",
-          "department": "HR",
-          "title": "Lead"
-        },
-        {
-          "name": "Mohammed Ali",
-          "email": "mohammed.ali@quantuminnovations.com",
-          "department": "Finance",
-          "title": "Associate"
-        },
-        {
-          "name": "William Wilson",
-          "email": "william.wilson@quantuminnovations.com",
-          "department": "Legal",
-          "title": "Senior Engineer"
-        },
-        {
-          "name": "Maria Rodriguez",
-          "email": "maria.rodriguez@quantuminnovations.com",
-          "department": "Product",
-          "title": "VP"
-        },
-        {
-          "name": "Michael Davis",
-          "email": "michael.davis@quantuminnovations.com",
-          "department": "Engineering",
-          "title": "Manager"
-        },
-        {
-          "name": "Charles Jackson",
-          "email": "charles.jackson@quantuminnovations.com",
-          "department": "Marketing",
-          "title": "Specialist"
-        },
-        {
-          "name": "Thomas Anderson",
-          "email": "thomas.anderson@quantuminnovations.com",
-          "department": "Sales",
-          "title": "Director"
-        }
-      ]
-    },
     {
       "company_name": "Global Solutions Inc.",
       "domain": "globalsolutions.com",
       "employees": [
         {
-          "name": "Amina Diallo",
-          "email": "amina.diallo@globalsolutions.com",
+          "name": "David Miller",
+          "email": "david.miller@globalsolutions.com",
           "department": "Engineering",
           "title": "Manager"
         },
         {
-          "name": "David Miller",
-          "email": "david.miller@globalsolutions.com",
+          "name": "William Wilson",
+          "email": "william.wilson@globalsolutions.com",
           "department": "Marketing",
           "title": "Specialist"
         },
         {
-          "name": "Olivia Martinez",
-          "email": "olivia.martinez@globalsolutions.com",
+          "name": "Chinwe Okoro",
+          "email": "chinwe.okoro@globalsolutions.com",
           "department": "Sales",
           "title": "Director"
         },
         {
-          "name": "Fatima Al-Farsi",
-          "email": "fatima.al-farsi@globalsolutions.com",
+          "name": "Yaa Asantewaa",
+          "email": "yaa.asantewaa@globalsolutions.com",
           "department": "HR",
           "title": "Lead"
         },
         {
-          "name": "Richard Moore",
-          "email": "richard.moore@globalsolutions.com",
+          "name": "Fatima Al-Farsi",
+          "email": "fatima.al-farsi@globalsolutions.com",
           "department": "Finance",
           "title": "Associate"
         },
         {
-          "name": "Yaa Asantewaa",
-          "email": "yaa.asantewaa@globalsolutions.com",
+          "name": "Thomas Anderson",
+          "email": "thomas.anderson@globalsolutions.com",
           "department": "Legal",
           "title": "Senior Engineer"
         },
         {
-          "name": "James Williams",
-          "email": "james.williams@globalsolutions.com",
+          "name": "Mohammed Ali",
+          "email": "mohammed.ali@globalsolutions.com",
           "department": "Product",
           "title": "VP"
         },
@@ -126,19 +60,89 @@
           "title": "Manager"
         },
         {
-          "name": "Isabella Garcia",
-          "email": "isabella.garcia@globalsolutions.com",
+          "name": "Nia Johnson",
+          "email": "nia.johnson@globalsolutions.com",
           "department": "Marketing",
           "title": "Specialist"
         },
         {
-          "name": "Chinwe Okoro",
-          "email": "chinwe.okoro@globalsolutions.com",
+          "name": "Joseph Taylor",
+          "email": "joseph.taylor@globalsolutions.com",
+          "department": "Sales",
+          "title": "Director"
+        }
+      ]
+    },
+    {
+      "company_name": "Acme Innovations",
+      "domain": "acmeinnovations.com",
+      "employees": [
+        {
+          "name": "Richard Moore",
+          "email": "richard.moore@acmeinnovations.com",
+          "department": "Engineering",
+          "title": "Manager"
+        },
+        {
+          "name": "Robert Brown",
+          "email": "robert.brown@acmeinnovations.com",
+          "department": "Marketing",
+          "title": "Specialist"
+        },
+        {
+          "name": "Maria Rodriguez",
+          "email": "maria.rodriguez@acmeinnovations.com",
+          "department": "Sales",
+          "title": "Director"
+        },
+        {
+          "name": "James Williams",
+          "email": "james.williams@acmeinnovations.com",
+          "department": "HR",
+          "title": "Lead"
+        },
+        {
+          "name": "Diego Fernandez",
+          "email": "diego.fernandez@acmeinnovations.com",
+          "department": "Finance",
+          "title": "Associate"
+        },
+        {
+          "name": "Olivia Martinez",
+          "email": "olivia.martinez@acmeinnovations.com",
+          "department": "Legal",
+          "title": "Senior Engineer"
+        },
+        {
+          "name": "Isabella Garcia",
+          "email": "isabella.garcia@acmeinnovations.com",
+          "department": "Product",
+          "title": "VP"
+        },
+        {
+          "name": "Michael Davis",
+          "email": "michael.davis@acmeinnovations.com",
+          "department": "Engineering",
+          "title": "Manager"
+        },
+        {
+          "name": "Amina Diallo",
+          "email": "amina.diallo@acmeinnovations.com",
+          "department": "Marketing",
+          "title": "Specialist"
+        },
+        {
+          "name": "Charles Jackson",
+          "email": "charles.jackson@acmeinnovations.com",
           "department": "Sales",
           "title": "Director"
         }
       ]
     }
   ],
-  "convert_combine": true
+  "convert_combine": true,
+  "bates_prefix_index": 3,
+  "bates_separator_index": 1,
+  "bates_start": 1,
+  "bates_padding": 7
 }

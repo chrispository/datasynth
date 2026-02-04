@@ -2,7 +2,9 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{
+        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    },
     Frame,
 };
 
@@ -14,7 +16,7 @@ pub fn render(f: &mut Frame, app: &App) {
         .constraints([
             Constraint::Length(3),  // Header
             Constraint::Min(0),     // Body
-            Constraint::Length(8),  // Logs
+            Constraint::Length(16), // Logs
             Constraint::Length(1),  // Help Footer
         ])
         .split(f.area());
@@ -34,10 +36,12 @@ fn render_header(f: &mut Frame, area: Rect) {
 }
 
 fn render_help(f: &mut Frame, area: Rect) {
-    let help_text = " Arrows: Nav | Enter/Space: Select/Load | G: Gen Companies | S: Start | Q: Quit ";
+    let help_text = " Arrows: Nav | Enter/Space: Select/Load | G: Gen Companies | S: Start | PgUp/PgDn: Scroll Logs | Q: Quit ";
     let paragraph = Paragraph::new(Line::from(Span::styled(
         help_text,
-        Style::default().fg(Color::DarkGray).add_modifier(Modifier::REVERSED),
+        Style::default()
+            .fg(Color::DarkGray)
+            .add_modifier(Modifier::REVERSED),
     )));
     f.render_widget(paragraph, area);
 }
@@ -61,7 +65,9 @@ fn render_sidebar(f: &mut Frame, app: &App, area: Rect) {
             let prefix = if i == app.sidebar_index { "▸ " } else { "  " };
             let content = format!("{}{}", prefix, section.as_str());
             let style = if i == app.sidebar_index && app.focus == Focus::Sidebar {
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::White)
             };
@@ -69,17 +75,16 @@ fn render_sidebar(f: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
-    let list = List::new(items)
-        .block(
-            Block::default()
-                .title(" Sections ")
-                .borders(Borders::ALL)
-                .border_style(if app.focus == Focus::Sidebar {
-                    Style::default().fg(Color::Yellow)
-                } else {
-                    Style::default().fg(Color::Gray)
-                }),
-        );
+    let list = List::new(items).block(
+        Block::default()
+            .title(" Sections ")
+            .borders(Borders::ALL)
+            .border_style(if app.focus == Focus::Sidebar {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default().fg(Color::Gray)
+            }),
+    );
 
     f.render_widget(list, area);
 }
@@ -104,50 +109,70 @@ fn render_main_content(f: &mut Frame, app: &App, area: Rect) {
         Section::Companies => render_companies_section(f, app, inner),
         Section::Run => render_run_section(f, app, inner),
         Section::Convert => render_convert_section(f, app, inner),
+        Section::Bates => render_bates_section(f, app, inner),
         _ => render_placeholder(f, app, inner),
     }
 }
 
 fn render_quantity_section(f: &mut Frame, app: &App, area: Rect) {
     let is_focused = app.focus == Focus::Main;
-    
+
     let fields = [
         ("Total Files", app.total_files, 0),
         ("Attachments %", app.percent_attachments, 1),
     ];
-    
+
     let mut lines = vec![
-        Line::from(Span::styled("Generation Parameters", Style::default().add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Generation Parameters",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
         Line::from(""),
     ];
-    
+
     for (name, value, idx) in fields {
         let is_selected = app.quantity_field_index == idx && is_focused;
         let prefix = if is_selected { "▸ " } else { "  " };
-        
+
         let style = if is_selected {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default()
         };
-        
+
         lines.push(Line::from(vec![
             Span::styled(format!("{}{}: ", prefix, name), style),
-            Span::styled(format!("{}", value), Style::default().fg(Color::Cyan).add_modifier(if is_selected { Modifier::BOLD } else { Modifier::empty() })),
+            Span::styled(
+                format!("{}", value),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(if is_selected {
+                        Modifier::BOLD
+                    } else {
+                        Modifier::empty()
+                    }),
+            ),
         ]));
     }
-    
+
     lines.push(Line::from(""));
     if is_focused {
-        lines.push(Line::from(Span::styled("↑/↓: Select | +/-: Adjust", Style::default().fg(Color::DarkGray))));
+        lines.push(Line::from(Span::styled(
+            "↑/↓: Select | +/-: Adjust",
+            Style::default().fg(Color::DarkGray),
+        )));
     } else {
-        lines.push(Line::from(Span::styled("→ to edit values", Style::default().fg(Color::DarkGray))));
+        lines.push(Line::from(Span::styled(
+            "→ to edit values",
+            Style::default().fg(Color::DarkGray),
+        )));
     }
 
     let paragraph = Paragraph::new(lines);
     f.render_widget(paragraph, area);
 }
-
 
 fn render_model_section(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
@@ -164,7 +189,10 @@ fn render_model_section(f: &mut Frame, app: &App, area: Rect) {
     } else {
         vec![Line::from(vec![
             Span::raw("API Key: "),
-            Span::styled("*".repeat(app.api_key.len()), Style::default().fg(Color::Green)),
+            Span::styled(
+                "*".repeat(app.api_key.len()),
+                Style::default().fg(Color::Green),
+            ),
             Span::styled(" ✓", Style::default().fg(Color::Green)),
         ])]
     };
@@ -213,7 +241,11 @@ fn render_model_section(f: &mut Frame, app: &App, area: Rect) {
 fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(0), Constraint::Length(2)])
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(0),
+            Constraint::Length(2),
+        ])
         .split(area);
 
     let is_focused = app.focus == Focus::Main;
@@ -225,7 +257,9 @@ fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(if load_highlight {
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(Color::Gray)
                 }),
@@ -249,7 +283,9 @@ fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
                 let is_selected = app.topic_panel == 1 && i == app.topic_cursor && is_focused;
                 let prefix = if is_selected { "▸ " } else { "  " };
                 let style = if is_selected {
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(Color::White)
                 };
@@ -279,10 +315,13 @@ fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
             .iter()
             .enumerate()
             .map(|(i, t)| {
-                let is_selected = app.topic_panel == 2 && i == app.selected_topic_cursor && is_focused;
+                let is_selected =
+                    app.topic_panel == 2 && i == app.selected_topic_cursor && is_focused;
                 let prefix = if is_selected { "▸ " } else { "  " };
                 let style = if is_selected {
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(Color::White)
                 };
@@ -306,7 +345,7 @@ fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
 
     f.render_widget(gen_list, list_chunks[0]);
     f.render_widget(sel_list, list_chunks[1]);
-    
+
     // Help text
     let help = Paragraph::new(Line::from(vec![
         Span::styled("Tab", Style::default().fg(Color::Cyan)),
@@ -334,7 +373,9 @@ fn render_companies_section(f: &mut Frame, app: &App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(if generate_highlight {
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(Color::Gray)
                 }),
@@ -347,9 +388,15 @@ fn render_companies_section(f: &mut Frame, app: &App, area: Rect) {
 
     if app.companies.is_empty() {
         let text = vec![
-            Line::from(Span::styled("No companies generated yet.", Style::default().fg(Color::Yellow))),
+            Line::from(Span::styled(
+                "No companies generated yet.",
+                Style::default().fg(Color::Yellow),
+            )),
             Line::from(""),
-            Line::from(Span::styled("Press Enter above to generate 2 random companies", Style::default().fg(Color::DarkGray))),
+            Line::from(Span::styled(
+                "Press Enter above to generate 2 random companies",
+                Style::default().fg(Color::DarkGray),
+            )),
         ];
         let paragraph = Paragraph::new(text);
         f.render_widget(paragraph, companies_area);
@@ -364,52 +411,87 @@ fn render_companies_section(f: &mut Frame, app: &App, area: Rect) {
 
     for (idx, company) in app.companies.iter().take(2).enumerate() {
         let mut lines = vec![
-            Line::from(Span::styled(&company.company_name, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
-            Line::from(Span::styled(format!("Domain: {}", company.domain), Style::default().fg(Color::DarkGray))),
+            Line::from(Span::styled(
+                &company.company_name,
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(Span::styled(
+                format!("Domain: {}", company.domain),
+                Style::default().fg(Color::DarkGray),
+            )),
             Line::from(""),
-            Line::from(Span::styled("Employees:", Style::default().add_modifier(Modifier::UNDERLINED))),
+            Line::from(Span::styled(
+                "Employees:",
+                Style::default().add_modifier(Modifier::UNDERLINED),
+            )),
         ];
 
         for emp in &company.employees {
             lines.push(Line::from(vec![
-                Span::styled(format!("  {} ", emp.name), Style::default().fg(Color::White)),
-                Span::styled(format!("({})", emp.title), Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    format!("  {} ", emp.name),
+                    Style::default().fg(Color::White),
+                ),
+                Span::styled(
+                    format!("({})", emp.title),
+                    Style::default().fg(Color::DarkGray),
+                ),
             ]));
         }
-        
+
         let block = Block::default()
             .title(format!(" Company {} ", idx + 1))
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(if idx == 0 { Color::Cyan } else { Color::Magenta }));
+            .border_style(Style::default().fg(if idx == 0 {
+                Color::Cyan
+            } else {
+                Color::Magenta
+            }));
 
         let paragraph = Paragraph::new(lines).block(block);
         f.render_widget(paragraph, company_chunks[idx]);
     }
 }
 
-
 fn render_run_section(f: &mut Frame, app: &App, area: Rect) {
     let ready = !app.companies.is_empty() && !app.api_key.is_empty();
-    
+
     let mut text = vec![
         Line::from("Ready to Generate"),
         Line::from(""),
         Line::from(format!("Files: {}", app.total_files)),
         Line::from(format!("Companies: {}", app.companies.len())),
-        Line::from(format!("API Key: {}", if app.api_key.is_empty() { "Not Set" } else { "Set" })),
+        Line::from(format!(
+            "API Key: {}",
+            if app.api_key.is_empty() {
+                "Not Set"
+            } else {
+                "Set"
+            }
+        )),
         Line::from(""),
     ];
 
     if app.is_generating {
         text.push(Line::from(Span::styled(
             "Generating... See logs below.",
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD | Modifier::ITALIC)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD | Modifier::ITALIC),
         )));
     } else {
         text.push(Line::from(Span::styled(
-            if ready { "[S] Start Generation" } else { "[S] Start (Not Ready)" },
             if ready {
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                "[S] Start Generation"
+            } else {
+                "[S] Start (Not Ready)"
+            },
+            if ready {
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::DarkGray)
             },
@@ -441,7 +523,8 @@ fn render_convert_section(f: &mut Frame, app: &App, area: Rect) {
 
     // Top: Folder List
     let folders: Vec<ListItem> = if app.convert_subfolders.is_empty() {
-        vec![ListItem::new(" (No output folders found) ").style(Style::default().fg(Color::DarkGray))]
+        vec![ListItem::new(" (No output folders found) ")
+            .style(Style::default().fg(Color::DarkGray))]
     } else {
         app.convert_subfolders
             .iter()
@@ -450,9 +533,13 @@ fn render_convert_section(f: &mut Frame, app: &App, area: Rect) {
                 let is_selected = i == app.convert_selected_index;
                 let prefix = if is_selected { "▸ " } else { "  " };
                 let style = if is_selected && is_focused {
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
                 } else if is_selected {
-                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(Color::White)
                 };
@@ -475,32 +562,43 @@ fn render_convert_section(f: &mut Frame, app: &App, area: Rect) {
 
     // Bottom: Combined Options Pane
     let check_mark = if app.convert_combine { "[x]" } else { "[ ]" };
-    
+
     let btn_text = if app.is_converting {
         "Converting... (Please wait)"
     } else {
         "[ Enter ] Convert to PDF"
     };
-    
+
     let option_focused = is_focused && app.convert_active_area == 1;
     let button_focused = is_focused && app.convert_active_area == 2;
 
     let button_style = if button_focused {
         if app.is_converting {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD)
         }
     } else if is_focused && app.convert_active_area == 0 {
-         Style::default().fg(Color::DarkGray)
+        Style::default().fg(Color::DarkGray)
     } else {
         Style::default().fg(Color::DarkGray)
     };
 
     let options_text = vec![
         Line::from(vec![
-            Span::styled(format!("{} Combine into 1 PDF", check_mark), 
-                if option_focused { Style::default().fg(Color::White).add_modifier(Modifier::BOLD) } else { Style::default().fg(Color::DarkGray) }
+            Span::styled(
+                format!("{} Combine into 1 PDF", check_mark),
+                if option_focused {
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::DarkGray)
+                },
             ),
             Span::styled("  (Space to toggle)", Style::default().fg(Color::DarkGray)),
         ]),
@@ -509,10 +607,10 @@ fn render_convert_section(f: &mut Frame, app: &App, area: Rect) {
         Line::from(""),
         Line::from(Span::styled(
             "Converts .eml files and attachments to PDF. Merges them in chronological order.",
-            Style::default().fg(Color::DarkGray)
+            Style::default().fg(Color::DarkGray),
         )),
     ];
-    
+
     let options_para = Paragraph::new(options_text).block(
         Block::default()
             .title(" Options ")
@@ -526,22 +624,246 @@ fn render_convert_section(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(options_para, chunks[1]);
 }
 
+fn render_bates_section(f: &mut Frame, app: &App, area: Rect) {
+    use crate::app::BATES_SEPARATORS;
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage(40), // File list
+            Constraint::Percentage(45), // Config fields
+            Constraint::Percentage(15), // Help
+        ])
+        .split(area);
+
+    let is_focused = app.focus == Focus::Main;
+
+    // Top: PDF file selector
+    let files: Vec<ListItem> = if app.bates_pdf_files.is_empty() {
+        vec![ListItem::new(" (No combined PDFs found) ").style(Style::default().fg(Color::DarkGray))]
+    } else {
+        app.bates_pdf_files
+            .iter()
+            .enumerate()
+            .map(|(i, name)| {
+                let is_selected = i == app.bates_file_index;
+                let prefix = if is_selected { "▸ " } else { "  " };
+                let style = if is_selected && is_focused && app.bates_active_area == 0 {
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
+                } else if is_selected {
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::White)
+                };
+                ListItem::new(format!("{}{}", prefix, name)).style(style)
+            })
+            .collect()
+    };
+
+    let file_list = List::new(files).block(
+        Block::default()
+            .title(" Combined PDFs (↑/↓) ")
+            .borders(Borders::ALL)
+            .border_style(if is_focused && app.bates_active_area == 0 {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default().fg(Color::Gray)
+            }),
+    );
+    f.render_widget(file_list, chunks[0]);
+
+    // Middle: Config fields
+    let current_prefix = &app.bates_prefix;
+    let current_sep = BATES_SEPARATORS[app.bates_separator_index];
+    let preview = format!(
+        "{}{}{}",
+        current_prefix,
+        current_sep,
+        format!(
+            "{:0>width$}",
+            app.bates_start,
+            width = app.bates_padding as usize
+        )
+    );
+
+    let field_style = |area_idx: usize| -> Style {
+        if is_focused && app.bates_active_area == area_idx {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        }
+    };
+
+    let value_style = |area_idx: usize| -> Style {
+        if is_focused && app.bates_active_area == area_idx {
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Cyan)
+        }
+    };
+
+    let btn_text = if app.is_stamping {
+        "Stamping... (Please wait)"
+    } else {
+        "[ Enter ] Stamp Bates Numbers"
+    };
+
+    let btn_style = if is_focused && app.bates_active_area == 5 {
+        if app.is_stamping {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD)
+        }
+    } else {
+        Style::default().fg(Color::DarkGray)
+    };
+
+    let config_lines = vec![
+        Line::from(Span::styled(
+            "Bates Configuration",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(
+                if is_focused && app.bates_active_area == 1 {
+                    "▸ "
+                } else {
+                    "  "
+                },
+                field_style(1),
+            ),
+            Span::styled("Prefix:    ", field_style(1)),
+            Span::styled(current_prefix, value_style(1)),
+            Span::styled("  (type to edit)", Style::default().fg(Color::DarkGray)),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                if is_focused && app.bates_active_area == 2 {
+                    "▸ "
+                } else {
+                    "  "
+                },
+                field_style(2),
+            ),
+            Span::styled("Separator: ", field_style(2)),
+            Span::styled(format!("\"{}\"", current_sep), value_style(2)),
+            Span::styled("  (+/- to cycle)", Style::default().fg(Color::DarkGray)),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                if is_focused && app.bates_active_area == 3 {
+                    "▸ "
+                } else {
+                    "  "
+                },
+                field_style(3),
+            ),
+            Span::styled("Start:     ", field_style(3)),
+            Span::styled(format!("{}", app.bates_start), value_style(3)),
+            Span::styled("  (+/- to adjust)", Style::default().fg(Color::DarkGray)),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                if is_focused && app.bates_active_area == 4 {
+                    "▸ "
+                } else {
+                    "  "
+                },
+                field_style(4),
+            ),
+            Span::styled("Padding:   ", field_style(4)),
+            Span::styled(format!("{}", app.bates_padding), value_style(4)),
+            Span::styled("  (+/- to adjust)", Style::default().fg(Color::DarkGray)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  Preview: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                preview,
+                Style::default()
+                    .fg(Color::Magenta)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(Span::styled(btn_text, btn_style)),
+    ];
+
+    let config_para = Paragraph::new(config_lines).block(
+        Block::default()
+            .title(" Settings ")
+            .borders(Borders::ALL)
+            .border_style(if is_focused && app.bates_active_area >= 1 {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default().fg(Color::Gray)
+            }),
+    );
+    f.render_widget(config_para, chunks[1]);
+
+    // Bottom: Help text
+    let help = Paragraph::new(Line::from(vec![
+        Span::styled("Tab", Style::default().fg(Color::Cyan)),
+        Span::raw(": Cycle fields  "),
+        Span::styled("+/-", Style::default().fg(Color::Cyan)),
+        Span::raw(": Adjust  "),
+        Span::styled("Enter", Style::default().fg(Color::Cyan)),
+        Span::raw(": Stamp"),
+    ]));
+    f.render_widget(help, chunks[2]);
+}
+
 fn render_logs(f: &mut Frame, app: &App, area: Rect) {
     let logs: Vec<Line> = app
         .logs
         .iter()
-        .rev()
-        .take(6)
-        .rev()
         .map(|log| Line::from(log.as_str()))
         .collect();
 
-    let paragraph = Paragraph::new(logs).block(
-        Block::default()
-            .title(" Logs ")
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Gray)),
-    );
+    let log_block = Block::default()
+        .title(" Logs ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Gray));
+
+    // Visible height = area height minus 2 for borders
+    let visible_height = area.height.saturating_sub(2) as usize;
+    let total_logs = logs.len();
+
+    // Calculate scroll offset: auto-scroll to bottom unless user has scrolled up
+    let scroll_offset = if total_logs > visible_height {
+        let max_offset = total_logs - visible_height;
+        // Use app.log_scroll_offset if set, otherwise auto-scroll to bottom
+        app.log_scroll_offset.unwrap_or(max_offset)
+    } else {
+        0
+    };
+
+    let paragraph = Paragraph::new(logs)
+        .block(log_block)
+        .scroll((scroll_offset as u16, 0));
 
     f.render_widget(paragraph, area);
+
+    // Render scrollbar if content overflows
+    if total_logs > visible_height {
+        let mut scrollbar_state =
+            ScrollbarState::new(total_logs.saturating_sub(visible_height)).position(scroll_offset);
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("▲"))
+            .end_symbol(Some("▼"));
+        f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
+    }
 }

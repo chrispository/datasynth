@@ -11,6 +11,7 @@ pub enum Section {
     Prompts,
     Run,
     Convert,
+    Bates,
 }
 
 impl Section {
@@ -24,10 +25,11 @@ impl Section {
             Section::Prompts => "Prompts",
             Section::Run => "Run",
             Section::Convert => "Convert",
+            Section::Bates => "Bates",
         }
     }
 
-    pub fn all() -> [Section; 8] {
+    pub fn all() -> [Section; 9] {
         [
             Section::Model,
             Section::Quantity,
@@ -37,6 +39,7 @@ impl Section {
             Section::Prompts,
             Section::Run,
             Section::Convert,
+            Section::Bates,
         ]
     }
 }
@@ -74,7 +77,19 @@ pub struct Settings {
     pub company_size: u32,
     pub companies: Vec<Company>,
     pub convert_combine: bool,
+    #[serde(default = "default_bates_prefix")]
+    pub bates_prefix: String,
+    #[serde(default)]
+    pub bates_separator_index: usize,
+    #[serde(default = "default_bates_start")]
+    pub bates_start: u32,
+    #[serde(default = "default_bates_padding")]
+    pub bates_padding: u32,
 }
+
+fn default_bates_prefix() -> String { "BATES".to_string() }
+fn default_bates_start() -> u32 { 1 }
+fn default_bates_padding() -> u32 { 7 }
 
 impl Settings {
     pub fn load() -> Option<Self> {
@@ -121,6 +136,7 @@ pub struct App {
     pub logs: Vec<String>,
     pub log_rx: tokio::sync::mpsc::UnboundedReceiver<String>,
     pub log_tx: tokio::sync::mpsc::UnboundedSender<String>,
+    pub log_scroll_offset: Option<usize>, // None = auto-scroll to bottom
     
     // Control
     pub should_quit: bool,
@@ -132,7 +148,19 @@ pub struct App {
     pub convert_combine: bool,
     pub is_converting: bool,
     pub convert_active_area: usize, // 0: Folder List, 1: Combine Toggle, 2: Convert Button
+
+    // Bates
+    pub bates_prefix: String,
+    pub bates_separator_index: usize,
+    pub bates_start: u32,
+    pub bates_padding: u32,
+    pub bates_active_area: usize, // 0=file list, 1=prefix, 2=separator, 3=start, 4=padding, 5=stamp button
+    pub bates_pdf_files: Vec<String>,
+    pub bates_file_index: usize,
+    pub is_stamping: bool,
 }
+
+pub const BATES_SEPARATORS: &[&str] = &["-", "_", "."];
 
 impl App {
     pub fn new() -> Self {
@@ -171,6 +199,7 @@ impl App {
             logs: vec!["Application initialized".to_string()],
             log_rx,
             log_tx,
+            log_scroll_offset: None,
             should_quit: false,
             is_generating: false,
             convert_subfolders: Vec::new(),
@@ -178,10 +207,19 @@ impl App {
             convert_combine: saved.as_ref().map(|s| s.convert_combine).unwrap_or(false),
             is_converting: false,
             convert_active_area: 0,
+            bates_prefix: saved.as_ref().map(|s| s.bates_prefix.clone()).unwrap_or_else(|| "BATES".to_string()),
+            bates_separator_index: saved.as_ref().map(|s| s.bates_separator_index).unwrap_or(0),
+            bates_start: saved.as_ref().map(|s| s.bates_start).unwrap_or(1),
+            bates_padding: saved.as_ref().map(|s| s.bates_padding).unwrap_or(7),
+            bates_active_area: 0,
+            bates_pdf_files: Vec::new(),
+            bates_file_index: 0,
+            is_stamping: false,
         };
-        
+
         // Initial scan of output folders
         app.scan_output_folders();
+        app.scan_bates_pdfs();
         
         if saved.is_some() {
             app.log("Loaded saved settings");
@@ -200,8 +238,12 @@ impl App {
             company_size: self.company_size,
             companies: self.companies.clone(),
             convert_combine: self.convert_combine,
+            bates_prefix: self.bates_prefix.clone(),
+            bates_separator_index: self.bates_separator_index,
+            bates_start: self.bates_start,
+            bates_padding: self.bates_padding,
         };
-        
+
         if let Err(e) = settings.save() {
             eprintln!("Failed to save settings: {}", e);
         }
@@ -213,7 +255,40 @@ impl App {
         self.logs.push(msg);
         if self.logs.len() > 100 {
             self.logs.remove(0);
+            // Adjust scroll offset when oldest log is removed
+            if let Some(offset) = self.log_scroll_offset.as_mut() {
+                *offset = offset.saturating_sub(1);
+            }
         }
+        // If user hasn't manually scrolled, stay at bottom (None = auto-scroll)
+    }
+
+    pub fn scroll_logs_up(&mut self) {
+        let visible_height = 14; // 16 - 2 for borders
+        if self.logs.len() <= visible_height {
+            return;
+        }
+        let max_offset = self.logs.len() - visible_height;
+        let current = self.log_scroll_offset.unwrap_or(max_offset);
+        self.log_scroll_offset = Some(current.saturating_sub(1));
+    }
+
+    pub fn scroll_logs_down(&mut self) {
+        let visible_height = 14; // 16 - 2 for borders
+        if self.logs.len() <= visible_height {
+            return;
+        }
+        let max_offset = self.logs.len() - visible_height;
+        if let Some(offset) = self.log_scroll_offset {
+            let new_offset = (offset + 1).min(max_offset);
+            if new_offset >= max_offset {
+                // Back at bottom, resume auto-scroll
+                self.log_scroll_offset = None;
+            } else {
+                self.log_scroll_offset = Some(new_offset);
+            }
+        }
+        // If None (auto-scroll), already at bottom, do nothing
     }
     
     pub fn update(&mut self) {
@@ -225,8 +300,11 @@ impl App {
             } else if msg == "__CONVERSION_COMPLETE__" {
                 self.is_converting = false;
                 self.log("Conversion process finished.");
-                // Re-scan to catch any file changes if needed, though mostly we just scan folders
                 self.scan_output_folders();
+                self.scan_bates_pdfs();
+            } else if msg == "__STAMPING_COMPLETE__" {
+                self.is_stamping = false;
+                self.log("Bates stamping process finished.");
             } else {
                 self.log(msg);
             }
@@ -282,11 +360,21 @@ impl App {
                 2 => self.convert_active_area = 1,
                 _ => {}
             }
+        } else if self.focus == Focus::Main && self.current_section == Section::Bates {
+            match self.bates_active_area {
+                0 => {
+                    if self.bates_file_index > 0 {
+                        self.bates_file_index -= 1;
+                    }
+                }
+                1..=5 => self.bates_active_area -= 1,
+                _ => {}
+            }
         }
     }
     
     pub fn navigate_down(&mut self) {
-        if self.focus == Focus::Sidebar && self.sidebar_index < 7 {
+        if self.focus == Focus::Sidebar && self.sidebar_index < 8 {
             self.sidebar_index += 1;
             self.current_section = Section::all()[self.sidebar_index];
         } else if self.focus == Focus::Main && self.current_section == Section::Model {
@@ -337,6 +425,19 @@ impl App {
                 }
                 1 => self.convert_active_area = 2,
                 2 => {}
+                _ => {}
+            }
+        } else if self.focus == Focus::Main && self.current_section == Section::Bates {
+            match self.bates_active_area {
+                0 => {
+                    if !self.bates_pdf_files.is_empty() && self.bates_file_index < self.bates_pdf_files.len() - 1 {
+                        self.bates_file_index += 1;
+                    } else {
+                        self.bates_active_area = 1;
+                    }
+                }
+                1..=4 => self.bates_active_area += 1,
+                5 => {}
                 _ => {}
             }
         }
@@ -674,6 +775,59 @@ impl App {
         }
     }
     
+    pub fn scan_bates_pdfs(&mut self) {
+        let output_path = std::path::Path::new("../output");
+        self.bates_pdf_files.clear();
+
+        if output_path.exists() && output_path.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(output_path) {
+                for entry in entries.flatten() {
+                    if let Ok(name) = entry.file_name().into_string() {
+                        if name.ends_with("_combined.pdf") {
+                            self.bates_pdf_files.push(name);
+                        }
+                    }
+                }
+            }
+        }
+        self.bates_pdf_files.sort();
+        if self.bates_file_index >= self.bates_pdf_files.len() {
+            self.bates_file_index = 0;
+        }
+    }
+
+    pub fn start_bates_stamp(&mut self) {
+        if self.bates_pdf_files.is_empty() {
+            self.log("No combined PDF files found for Bates stamping!");
+            return;
+        }
+
+        if self.is_stamping {
+            self.log("Already stamping!");
+            return;
+        }
+
+        if self.bates_file_index >= self.bates_pdf_files.len() {
+            return;
+        }
+
+        let file_name = self.bates_pdf_files[self.bates_file_index].clone();
+        let file_path = format!("output/{}", file_name);
+        let prefix = self.bates_prefix.clone();
+        let separator = BATES_SEPARATORS[self.bates_separator_index].to_string();
+        let start = self.bates_start;
+        let padding = self.bates_padding;
+
+        self.is_stamping = true;
+        self.log(format!("Starting Bates stamping on {}...", file_name));
+
+        let tx = self.log_tx.clone();
+
+        tokio::spawn(async move {
+            bates_process_logic(tx, file_path, prefix, separator, start, padding).await;
+        });
+    }
+
     pub fn start_conversion(&mut self) {
         if self.convert_subfolders.is_empty() {
             self.log("No subfolders to convert!");
@@ -756,6 +910,64 @@ async fn convert_process_logic(
         Err(e) => {
             let _ = tx.send(format!("Failed to start conversion process: {}", e));
             let _ = tx.send("__CONVERSION_COMPLETE__".to_string());
+        }
+    }
+}
+
+async fn bates_process_logic(
+    tx: tokio::sync::mpsc::UnboundedSender<String>,
+    file_path: String,
+    prefix: String,
+    separator: String,
+    start: u32,
+    padding: u32,
+) {
+    use tokio::process::Command;
+    use tokio::io::{AsyncBufReadExt, BufReader};
+    use std::process::Stdio;
+
+    let mut cmd = Command::new("python3");
+    cmd.current_dir(".."); // Run from project root
+    cmd.arg("bates_stamp.py")
+        .arg("--file").arg(file_path)
+        .arg("--prefix").arg(prefix)
+        .arg("--separator").arg(separator)
+        .arg("--start").arg(start.to_string())
+        .arg("--padding").arg(padding.to_string());
+
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    match cmd.spawn() {
+        Ok(mut child) => {
+            let stdout = child.stdout.take().unwrap();
+            let stderr = child.stderr.take().unwrap();
+
+            let mut stdout_reader = BufReader::new(stdout).lines();
+            let mut stderr_reader = BufReader::new(stderr).lines();
+
+            let tx_clone = tx.clone();
+            tokio::spawn(async move {
+                while let Ok(Some(line)) = stdout_reader.next_line().await {
+                    let _ = tx_clone.send(line);
+                }
+            });
+
+            let tx_clone2 = tx.clone();
+            tokio::spawn(async move {
+                while let Ok(Some(line)) = stderr_reader.next_line().await {
+                    if !line.trim().is_empty() {
+                        let _ = tx_clone2.send(format!("ERROR: {}", line));
+                    }
+                }
+            });
+
+            let _ = child.wait().await;
+            let _ = tx.send("__STAMPING_COMPLETE__".to_string());
+        }
+        Err(e) => {
+            let _ = tx.send(format!("Failed to start bates stamping process: {}", e));
+            let _ = tx.send("__STAMPING_COMPLETE__".to_string());
         }
     }
 }
