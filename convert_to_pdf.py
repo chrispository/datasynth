@@ -1,3 +1,4 @@
+import logging
 import os
 import argparse
 import io
@@ -7,8 +8,13 @@ from email.parser import BytesParser
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
 from pypdf import PdfWriter, PdfReader
+from utils import strip_markdown
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+FONT_SIZE_BODY = 10
+FONT_SIZE_DOC_BODY = 11
+FONT_SIZE_DOC_TITLE = 14
 
 try:
     from docx import Document
@@ -18,7 +24,7 @@ except ImportError:
     HAS_DOCX = False
 
 
-def parse_eml(file_path):
+def parse_eml(file_path: str) -> dict[str, str]:
     with open(file_path, "rb") as f:
         msg = BytesParser(policy=policy.default).parse(f)
 
@@ -41,7 +47,7 @@ def parse_eml(file_path):
     return {"subject": subject, "from": from_, "to": to, "sent": date, "body": body}
 
 
-def sanitize_text(text, collapse_whitespace=True):
+def sanitize_text(text: str, collapse_whitespace: bool = True) -> str:
     if not text:
         return ""
     if not isinstance(text, str):
@@ -59,27 +65,27 @@ def sanitize_text(text, collapse_whitespace=True):
 from pdf_utils import init_pdf
 
 class PDFConverter:
-    def __init__(self, output_path):
+    def __init__(self, output_path: str) -> None:
         self.output_path = output_path
 
         # Use shared initialization
         self.pdf = init_pdf()
 
-    def ensure_page(self):
+    def ensure_page(self) -> None:
         if self.pdf.page_no() == 0:
             self.pdf.add_page()
-            self.pdf.set_font("DejaVu", size=10)
+            self.pdf.set_font("DejaVu", size=FONT_SIZE_BODY)
 
-    def _render_email_headers(self, headers):
+    def _render_email_headers(self, headers: list[tuple[str, str]]) -> None:
         """Render email headers with label bold, value regular."""
         for label, value in headers:
-            self.pdf.set_font("DejaVu", "B", 10)
+            self.pdf.set_font("DejaVu", "B", FONT_SIZE_BODY)
             label_width = self.pdf.get_string_width(label) + 2
             self.pdf.cell(
                 label_width, 6, text=label, new_x=XPos.RIGHT, new_y=YPos.TOP
             )
 
-            self.pdf.set_font("DejaVu", "", 10)
+            self.pdf.set_font("DejaVu", "", FONT_SIZE_BODY)
             self.pdf.multi_cell(
                 0,
                 6,
@@ -88,7 +94,7 @@ class PDFConverter:
                 new_y=YPos.NEXT,
             )
 
-    def _render_separator_line(self):
+    def _render_separator_line(self) -> None:
         """Render a horizontal separator line."""
         self.pdf.ln(3)
         self.pdf.set_draw_color(180, 180, 180)
@@ -97,12 +103,12 @@ class PDFConverter:
         self.pdf.ln(5)
         self.pdf.set_draw_color(0, 0, 0)
 
-    def add_eml(self, file_path):
+    def add_eml(self, file_path: str) -> None:
         data = parse_eml(file_path)
 
         # Start each email on a new page
         self.pdf.add_page()
-        self.pdf.set_font("DejaVu", size=10)
+        self.pdf.set_font("DejaVu", size=FONT_SIZE_BODY)
 
         # Headers - label bold, value regular (like real email clients)
         headers = [
@@ -115,21 +121,19 @@ class PDFConverter:
         self._render_separator_line()
 
         # Body
-        self.pdf.set_font("DejaVu", "", 10)
+        self.pdf.set_font("DejaVu", "", FONT_SIZE_BODY)
         body = data["body"].strip() if data["body"] else ""
-        # Basic markdown-to-print cleanup
-        body = body.replace("**", "")
-        body = re.sub(r"^\* ", "• ", body, flags=re.MULTILINE)
+        body = strip_markdown(body)
 
         self.pdf.multi_cell(
             0,
             5,
             text=sanitize_text(body, collapse_whitespace=False),
-            new_x=self.XPos.LMARGIN,
-            new_y=self.YPos.NEXT,
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
         )
 
-    def add_md(self, file_path):
+    def add_md(self, file_path: str) -> None:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
@@ -158,7 +162,7 @@ class PDFConverter:
         body = "\n".join(lines[body_start_idx:]).strip()
 
         self.pdf.add_page()
-        self.pdf.set_font("DejaVu", size=10)
+        self.pdf.set_font("DejaVu", size=FONT_SIZE_BODY)
 
         # Headers - label bold, value regular
         display_headers = [
@@ -181,10 +185,8 @@ class PDFConverter:
         self._render_email_headers(display_headers)
         self._render_separator_line()
 
-        self.pdf.set_font("DejaVu", "", 10)
-        # Basic markdown-to-print cleanup
-        body = body.replace("**", "")
-        body = re.sub(r"^\* ", "• ", body, flags=re.MULTILINE)
+        self.pdf.set_font("DejaVu", "", FONT_SIZE_BODY)
+        body = strip_markdown(body)
 
         self.pdf.multi_cell(
             0,
@@ -194,19 +196,19 @@ class PDFConverter:
             new_y=YPos.NEXT,
         )
 
-    def add_docx(self, file_path):
+    def add_docx(self, file_path: str) -> None:
         self.pdf.add_page()
 
         if not HAS_DOCX:
-            self.pdf.set_font("DejaVu", "I", 10)
+            self.pdf.set_font("DejaVu", "I", FONT_SIZE_BODY)
             self.pdf.multi_cell(
                 0,
                 6,
                 text=sanitize_text(
                     f"[Attachment: {os.path.basename(file_path)} - python-docx not installed]"
                 ),
-                new_x=self.XPos.LMARGIN,
-                new_y=self.YPos.NEXT,
+                new_x=XPos.LMARGIN,
+                new_y=YPos.NEXT,
             )
             return
 
@@ -218,7 +220,7 @@ class PDFConverter:
             title = re.sub(r"^\d{4}_.*_attachment_", "", raw_title)
             title = title.replace(".docx", "").replace("_", " ")
 
-            self.pdf.set_font("DejaVu", "B", 14)
+            self.pdf.set_font("DejaVu", "B", FONT_SIZE_DOC_TITLE)
             self.pdf.cell(
                 0,
                 10,
@@ -229,13 +231,12 @@ class PDFConverter:
             )
             self.pdf.ln(5)
 
-            self.pdf.set_font("DejaVu", "", 11)
+            self.pdf.set_font("DejaVu", "", FONT_SIZE_DOC_BODY)
             for para in doc.paragraphs:
                 text = para.text.strip()
                 if text:
-                    # Basic cleanup
                     clean_text = sanitize_text(text, collapse_whitespace=False)
-                    clean_text = clean_text.replace("**", "")
+                    clean_text = strip_markdown(clean_text)
                     self.pdf.multi_cell(
                         0,
                         5,
@@ -245,24 +246,24 @@ class PDFConverter:
                     )
             self.pdf.ln(10)
         except Exception as e:
-            self.pdf.set_font("DejaVu", "I", 10)
+            self.pdf.set_font("DejaVu", "I", FONT_SIZE_BODY)
             self.pdf.multi_cell(
                 0,
                 6,
                 text=sanitize_text(
                     f"[Error reading docx {os.path.basename(file_path)}: {e}]"
                 ),
-                new_x=self.XPos.LMARGIN,
-                new_y=self.YPos.NEXT,
+                new_x=XPos.LMARGIN,
+                new_y=YPos.NEXT,
             )
 
-    def save_temp_pdf(self):
+    def save_temp_pdf(self) -> str:
         temp_path = "temp_generated.pdf"
         self.pdf.output(temp_path)
         return temp_path
 
 
-def combine_files(folder_path, output_file):
+def combine_files(folder_path: str, output_file: str) -> None:
     # Find all numbered files (matches 0001a_, 0001b_, etc.)
     files = []
     for f in os.listdir(folder_path):
@@ -302,7 +303,7 @@ def combine_files(folder_path, output_file):
                 with open(file_path, "rb") as f:
                     writer.append(f)
             except Exception as e:
-                print(f"Error merging PDF {filename}: {e}")
+                logging.error(f"Error merging PDF {filename}: {e}")
 
     # Final flush
     if len(converter.pdf.pages) > 0:
@@ -313,10 +314,10 @@ def combine_files(folder_path, output_file):
 
     with open(output_file, "wb") as f:
         writer.write(f)
-    print(f"Created combined PDF: {output_file}")
+    logging.info(f"Created combined PDF: {output_file}")
 
 
-def convert_individual(folder_path):
+def convert_individual(folder_path: str) -> None:
     # This logic still exists if user doesn't want combine, but usually they do
     files = [f for f in os.listdir(folder_path) if f.lower().endswith((".eml", ".md"))]
     files.sort()
@@ -332,7 +333,7 @@ def convert_individual(folder_path):
         elif ext == "md":
             converter.add_md(file_path)
         converter.pdf.output(output_path)
-        print(f"Converted: {output_name}")
+        logging.info(f"Converted: {output_name}")
 
 
 def main():
@@ -346,8 +347,10 @@ def main():
 
     args = parser.parse_args()
 
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
     if not os.path.exists(args.folder):
-        print(f"Error: Folder does not exist: {args.folder}")
+        logging.error(f"Folder does not exist: {args.folder}")
         return
 
     if args.combine:

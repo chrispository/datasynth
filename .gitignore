@@ -4,7 +4,6 @@ __pycache__/
 *.pyc
 node_modules/
 *.pdf
-tui-rust/target/
-tui-rust/target/debug
+target/
 *.eml
 *.docx

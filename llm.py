@@ -1,12 +1,15 @@
+import logging
 import os
 import random
+from typing import Optional
+
 import google.generativeai as genai
 from dotenv import load_dotenv
 
 load_dotenv()
 
 class GeminiGenerator:
-    def __init__(self, model_name='gemini-2.5-flash'):
+    def __init__(self, model_name: str = 'gemini-2.5-flash') -> None:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY not found in environment variables or .env file")
@@ -17,21 +20,28 @@ class GeminiGenerator:
             model_name = f"models/{model_name}"
         self.model = genai.GenerativeModel(model_name)
 
-    def generate_email_content(self, prompt):
+    def generate_email_content(self, prompt: str) -> Optional[str]:
         try:
-            print(f"  [LLM] Requesting content from Gemini ({self.model.model_name})...", end="", flush=True)
+            logging.info(f"  [LLM] Requesting content from Gemini ({self.model.model_name})...")
             response = self.model.generate_content(prompt)
             if response and response.text:
-                print(" Done.", flush=True)
+                logging.info("  [LLM] Done.")
                 return response.text
             else:
-                print(" Failed (Empty response).", flush=True)
+                logging.warning("  [LLM] Failed (Empty response).")
                 return None
         except Exception as e:
-            print(f" Failed. Error generating content with Gemini: {e}")
+            logging.warning(f"  [LLM] Failed. Error generating content with Gemini: {e}")
             return None
 
-    def generate_email(self, sender, recipients, topic, context=None, used_subjects=None):
+    def generate_email(
+        self,
+        sender: dict,
+        recipients: list[dict],
+        topic: str,
+        context: Optional[str] = None,
+        used_subjects: Optional[list[str]] = None,
+    ) -> tuple[Optional[str], Optional[str]]:
         styles = [
             "direct and concise",
             "formal and detailed",

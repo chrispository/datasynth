@@ -7,11 +7,17 @@ import random
 import datetime
 import logging
 import uuid
+from typing import Optional
 
 from .email import Email, Attachment, parse_display
 from .file_generator import FileGenerator
+from utils import sanitize_filename
 
 from faker_instance import fake
+
+ACTION_WEIGHTS = {"reply": 0.8, "forward": 0.1, "nothing": 0.1}
+DEFAULT_EARLY_END_CHANCE = 0.15
+DEFAULT_MAX_EMAILS_PER_THREAD = 9
 
 
 class ThreadGenerator:
@@ -32,13 +38,13 @@ class ThreadGenerator:
     
     def __init__(
         self,
-        roster=None,
-        llm=None,
-        start_date=None,
-        output_dir="output",
-        topic=None,
-        attachment_percent=30,
-    ):
+        roster: Optional[list[dict]] = None,
+        llm: Optional[object] = None,
+        start_date: Optional[datetime.datetime] = None,
+        output_dir: str = "output",
+        topic: Optional[str] = None,
+        attachment_percent: int = 30,
+    ) -> None:
         self.emails = []  # Flat list of all emails generated
         self.threads = {}  # Map thread_id -> list of Email objects
         self._replied_parent_ids = set()  # Track messages that have been replied to
@@ -66,17 +72,17 @@ class ThreadGenerator:
         self.topic = topic
         self.attachment_percent = attachment_percent / 100.0
 
-    def _tick_time(self):
+    def _tick_time(self) -> datetime.datetime:
         """Advance time by a random increment."""
         increment = datetime.timedelta(minutes=random.randint(1, 120))
         self.current_date += increment
         return self.current_date
 
-    def get_person_display(self, person):
+    def get_person_display(self, person: dict) -> str:
         """Format a person dict as 'Name <email>'."""
         return f"{person['name']} <{person['email']}>"
 
-    def _get_thread_participants(self, thread_id):
+    def _get_thread_participants(self, thread_id: str) -> list[str]:
         """Get all unique participants (senders and recipients) from a thread."""
         participants = set()
         if thread_id in self.threads:
@@ -85,11 +91,11 @@ class ThreadGenerator:
                 participants.update(email.recipients)
         return list(participants)
 
-    def _can_forward_to_new_recipients(self, thread_id):
+    def _can_forward_to_new_recipients(self, thread_id: str) -> bool:
         """Check if there are roster members not in the current thread."""
         return len(self._get_available_recipients(thread_id)) > 0
 
-    def _get_available_recipients(self, thread_id):
+    def _get_available_recipients(self, thread_id: str) -> list[dict]:
         """Get roster members not yet in the thread - useful for branching."""
         thread_participants = self._get_thread_participants(thread_id)
         participant_emails = set()
@@ -101,11 +107,11 @@ class ThreadGenerator:
 
         return [p for p in self.roster if p["email"] not in participant_emails]
 
-    def _has_reply(self, message_id):
+    def _has_reply(self, message_id: str) -> bool:
         """Check if an email has already been replied to."""
         return message_id in self._replied_parent_ids
 
-    def create_root_email(self):
+    def create_root_email(self) -> Email:
         """Create a new root email starting a fresh thread."""
         sender = random.choice(self.roster)
         recipients = random.sample(
@@ -162,7 +168,7 @@ class ThreadGenerator:
         self._store_email(email)
         return email
 
-    def reply_to(self, parent_email, reply_all=True):
+    def reply_to(self, parent_email: Email, reply_all: bool = True) -> Email:
         """
         Create a reply to an existing email, staying in the SAME thread.
         
@@ -249,7 +255,7 @@ class ThreadGenerator:
         self._store_email(email)
         return email
 
-    def forward(self, parent_email):
+    def forward(self, parent_email: Email) -> Email:
         """
         Forward an email to new recipients, starting a NEW thread.
         
@@ -339,7 +345,7 @@ class ThreadGenerator:
         self._store_email(email)
         return email
 
-    def _store_email(self, email):
+    def _store_email(self, email: Email) -> None:
         """Store an email and update thread tracking."""
         self.emails.append(email)
         if email.thread_id not in self.threads:
@@ -355,7 +361,7 @@ class ThreadGenerator:
             f"  [Progress] Total emails: {len(self.emails)} | Inclusive emails: {inclusive_count}"
         )
 
-    def _count_inclusive_emails(self):
+    def _count_inclusive_emails(self) -> int:
         """
         Count "inclusive" emails (leaf nodes in the thread tree).
         
@@ -379,8 +385,11 @@ class ThreadGenerator:
         return sum(1 for e in self.emails if e.message_id not in parent_message_ids)
 
     def simulate(
-        self, target_inclusive=5, max_emails_per_thread=9, early_end_chance=0.15
-    ):
+        self,
+        target_inclusive: int = 5,
+        max_emails_per_thread: int = DEFAULT_MAX_EMAILS_PER_THREAD,
+        early_end_chance: float = DEFAULT_EARLY_END_CHANCE,
+    ) -> None:
         """Simulate multiple email threads until we have target_inclusive leaf emails."""
         logging.info(f"Simulation started. Target: {target_inclusive} inclusive emails.")
 
@@ -415,9 +424,9 @@ class ThreadGenerator:
                 
                 parent = unreplied_msgs[-1]  # Most recent unreplied message
 
-                # Action weights: 80% reply, 10% forward, 10% skip
                 action = random.choices(
-                    ["reply", "forward", "nothing"], weights=[0.8, 0.1, 0.1]
+                    list(ACTION_WEIGHTS.keys()),
+                    weights=list(ACTION_WEIGHTS.values()),
                 )[0]
 
                 # Convert forward to reply if no new recipients available
@@ -432,25 +441,25 @@ class ThreadGenerator:
         logging.info("Simulation complete.")
 
 
-def save_as_markdown(email_obj, output_dir="output", index=0):
+def save_as_markdown(email_obj: Email, output_dir: str = "output", index: int = 0) -> str:
     """
     Save an email as a markdown file with proper naming for sort order.
-    
+
     Uses 'a' suffix for emails and 'b' suffix for attachments to ensure
     alphabetical sorting places emails before their attachments.
-    
+
     Args:
         email_obj: Email object to save
         output_dir: Directory to write files to
         index: Numeric index for file ordering
-    
+
     Returns:
         Path to the saved markdown file
     """
     import shutil
-    
+
     # Create safe subject for filename
-    safe_subject = "".join([c if c.isalnum() else "_" for c in email_obj.subject])[:40]
+    safe_subject = sanitize_filename(email_obj.subject, max_length=40)
     # Use 'a' suffix for emails to sort before attachments
     filename = f"{index:04d}a_{safe_subject}.md"
     filepath = os.path.join(output_dir, filename)

@@ -5,10 +5,13 @@ File generator for creating PDF and DOCX attachments.
 import os
 import re
 import random
+from typing import Optional
+
 from docx import Document
 from docx.enum.section import WD_ORIENT
 from docx.shared import Inches
 from pdf_utils import init_pdf
+from utils import sanitize_filename
 
 from faker_instance import fake
 
@@ -21,14 +24,14 @@ class FileGenerator:
     fallbacks for offline operation.
     """
     
-    def __init__(self, output_dir="output", llm=None, topic=None):
+    def __init__(self, output_dir: str = "output", llm: Optional[object] = None, topic: Optional[str] = None) -> None:
         self.output_dir = output_dir
         self.llm = llm
         self.topic = topic
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-    def create_pdf(self, filename, content_text):
+    def create_pdf(self, filename: str, content_text: str) -> str:
         """Create a PDF file with the given content."""
         pdf = init_pdf()
         pdf.add_page()
@@ -39,7 +42,7 @@ class FileGenerator:
         pdf.output(filepath)
         return filepath
 
-    def create_docx(self, filename, content_text):
+    def create_docx(self, filename: str, content_text: str) -> str:
         """Create a DOCX file with rich formatting parsed from markdown."""
         doc = Document()
 
@@ -88,7 +91,7 @@ class FileGenerator:
         doc.save(filepath)
         return filepath
 
-    def _add_runs_with_bold(self, paragraph, text):
+    def _add_runs_with_bold(self, paragraph: object, text: str) -> None:
         """Parse **bold** markers in text and add runs to paragraph."""
         parts = re.split(r"(\*\*[^*]+\*\*)", text)
         for part in parts:
@@ -98,7 +101,7 @@ class FileGenerator:
             else:
                 paragraph.add_run(part)
 
-    def _generate_content(self, doc_type, context=None):
+    def _generate_content(self, doc_type: str, context: Optional[str] = None) -> str:
         """Generate document content using LLM or fallback templates."""
         if self.llm:
             prompt = f"Generate a realistic {doc_type} document"
@@ -171,7 +174,7 @@ Keep it under 750 words. Write ONLY the document content."""
             f"{fake.paragraph(nb_sentences=3)}"
         )
 
-    def _generate_document_title(self, doc_type, context=None):
+    def _generate_document_title(self, doc_type: str, context: Optional[str] = None) -> str:
         """Generate a professional document title using LLM or fallback."""
         if self.llm:
             prompt = f"""Generate a short, professional document filename (no extension) for a {doc_type}.
@@ -188,8 +191,7 @@ Return ONLY the filename, nothing else."""
                 title = title.strip().strip('"').strip("'").strip()
                 # Ensure proper formatting
                 title = "_".join(word.capitalize() for word in title.replace("_", " ").split())
-                # Remove any remaining non-alphanumeric chars except underscores
-                title = "".join(c if c.isalnum() or c == "_" else "" for c in title)
+                title = sanitize_filename(title)
                 if title:
                     return title
         
@@ -198,14 +200,14 @@ Return ONLY the filename, nothing else."""
             # Take first 2-3 words of topic
             words = self.topic.split()[:3]
             topic_part = "_".join(w.capitalize() for w in words)
-            topic_part = "".join(c if c.isalnum() or c == "_" else "" for c in topic_part)
+            topic_part = sanitize_filename(topic_part)
             doc_type_cap = doc_type.capitalize()
             return f"{topic_part}_{doc_type_cap}"
         
         # Ultimate fallback
         return f"Business_{doc_type.capitalize()}"
 
-    def generate_random_file(self, base_name, doc_type="document", context=None):
+    def generate_random_file(self, doc_type: str = "document", context: Optional[str] = None) -> str:
         """Generate a random PDF or DOCX file with LLM or fallback content."""
         ext = random.choice(["pdf", "docx"])
         # Generate a clean, professional document title

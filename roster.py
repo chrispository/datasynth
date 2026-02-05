@@ -1,16 +1,19 @@
 import json
+import logging
 import os
 import random
+from typing import Optional
 
 from faker_instance import fake
 
+
 class RosterGenerator:
-    def __init__(self, company_name=None):
+    def __init__(self, company_name: Optional[str] = None) -> None:
         self.company_name = company_name if company_name else fake.company()
         self.domain = self.company_name.lower().replace(" ", "").replace(",", "") + ".com"
         self.employees = []
 
-    def generate_roster(self, count=20):
+    def generate_roster(self, count: int = 20) -> list[dict]:
         self.employees = []
         departments = ["Engineering", "Marketing", "Sales", "Human Resources", "Finance", "Legal", "Product"]
         titles = {
@@ -39,7 +42,7 @@ class RosterGenerator:
             })
         return self.employees
 
-    def save_roster(self, filepath="roster.json"):
+    def save_roster(self, filepath: str = "roster.json") -> None:
         with open(filepath, "w") as f:
             json.dump({
                 "company_name": self.company_name,
@@ -47,7 +50,7 @@ class RosterGenerator:
                 "employees": self.employees
             }, f, indent=4)
 
-    def load_roster(self, filepath="roster.json"):
+    def load_roster(self, filepath: str = "roster.json") -> Optional[list[dict]]:
         if os.path.exists(filepath):
             with open(filepath, "r") as f:
                 data = json.load(f)
@@ -61,4 +64,5 @@ if __name__ == "__main__":
     gen = RosterGenerator()
     gen.generate_roster(25)
     gen.save_roster()
-    print(f"Generated roster for {gen.company_name} with {len(gen.employees)} employees.")
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    logging.info(f"Generated roster for {gen.company_name} with {len(gen.employees)} employees.")

@@ -1,3 +1,4 @@
+import logging
 import os
 from fpdf import FPDF
 
@@ -36,7 +37,7 @@ def init_pdf(base_dir=None):
             pdf.add_font("DejaVu", "I", font_path)
             pdf.add_font("DejaVu", "BI", font_path)
     else:
-        print(f"Warning: Font not found at {font_path}, falling back to standard fonts.")
+        logging.warning(f"Font not found at {font_path}, falling back to standard fonts.")
         
     # Set default settings
     pdf.set_margins(10, 10, 10)

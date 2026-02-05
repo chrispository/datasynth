@@ -19,13 +19,23 @@ from dotenv import load_dotenv
 from models import ThreadGenerator, Attachment, save_as_markdown
 from roster import RosterGenerator
 from llm import GeminiGenerator
+from utils import sanitize_filename
+
+DEFAULT_ROSTER_SIZE = 25
 
 
 def main():
     load_dotenv()
 
+    # Early console-only logging until output dir is known
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+
     try:
-        print("Starting generator...", flush=True)
+        logging.info("Starting generator...")
         parser = argparse.ArgumentParser(
             description="Generate synthetic email threads with attachments"
         )
@@ -34,9 +44,6 @@ def main():
             type=int,
             default=5,
             help="Number of inclusive email threads to generate",
-        )
-        parser.add_argument(
-            "--steps", type=int, default=None, help="Deprecated, use --files instead"
         )
         parser.add_argument(
             "--output", type=str, default="output", help="Output directory"
@@ -57,51 +64,42 @@ def main():
         parser.add_argument(
             "--model", type=str, default="gemini-2.5-flash", help="Gemini model to use"
         )
-        # Kept for compatibility but ignored
-        parser.add_argument("--pdf", action="store_true", help="Ignored")
         args = parser.parse_args()
 
         # Handle Roster
         roster_gen = RosterGenerator()
         if os.path.exists(args.roster):
-            print(f"Loading roster from {args.roster}...", flush=True)
+            logging.info(f"Loading roster from {args.roster}...")
             roster = roster_gen.load_roster(args.roster)
         else:
-            print(f"Generating new roster...", flush=True)
-            roster = roster_gen.generate_roster(25)
+            logging.info(f"Generating new roster...")
+            roster = roster_gen.generate_roster(DEFAULT_ROSTER_SIZE)
             roster_gen.save_roster(args.roster)
-            print(f"Saved roster to {args.roster}", flush=True)
+            logging.info(f"Saved roster to {args.roster}")
 
         # Handle LLM
         llm = None
         if args.gemini:
             if not os.getenv("GEMINI_API_KEY"):
-                print("\nGemini API key not found.")
+                logging.warning("Gemini API key not found.")
                 key = input("Please paste your Gemini API key: ").strip()
                 if key:
                     with open(".env", "a" if os.path.exists(".env") else "w") as f:
                         f.write(f"\nGEMINI_API_KEY={key}\n")
                     os.environ["GEMINI_API_KEY"] = key
-                    print("API key saved to .env\n")
+                    logging.info("API key saved to .env")
                 else:
-                    print(
-                        "Error: Gemini API key is required for --gemini mode.",
-                        file=sys.stderr,
-                    )
+                    logging.error("Gemini API key is required for --gemini mode.")
                     sys.exit(1)
 
-            print(f"Initializing Gemini LLM with model: {args.model}...", flush=True)
+            logging.info(f"Initializing Gemini LLM with model: {args.model}...")
             llm = GeminiGenerator(model_name=args.model)
 
         # Create a topic-based subfolder for this run's output
         if args.topic:
             # Extract first two words from topic for folder name
             words = args.topic.split()[:2]
-            folder_name = "_".join(w.lower() for w in words)
-            # Clean up any non-alphanumeric chars
-            folder_name = "".join(
-                c if c.isalnum() or c == "_" else "_" for c in folder_name
-            )
+            folder_name = sanitize_filename("_".join(w.lower() for w in words))
         else:
             # Fallback to timestamp if no topic
             folder_name = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -114,18 +112,11 @@ def main():
             if re.match(r"^\d{4}[a-z]?_", old_file):
                 os.remove(os.path.join(run_output_dir, old_file))
 
-        # Initialize logging
+        # Add file handler now that output dir is known
         log_file = os.path.join(run_output_dir, "generator.log")
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s [%(levelname)s] %(message)s",
-            handlers=[
-                logging.FileHandler(log_file),
-                logging.StreamHandler(sys.stdout)
-            ]
-        )
-        
-        logging.info(f"Starting generator...")
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+        logging.getLogger().addHandler(file_handler)
         logging.info(f"Output folder: {run_output_dir}")
 
         gen = ThreadGenerator(
@@ -136,11 +127,7 @@ def main():
             attachment_percent=args.attachments,
         )
 
-        # Handle backwards compatibility: --steps is deprecated
         target_files = args.files
-        if args.steps is not None:
-            print(f"Warning: --steps is deprecated, use --files instead", flush=True)
-            target_files = args.steps
 
         logging.info(f"Generating {target_files} inclusive email threads...")
         logging.info(f"Attachment rate: {args.attachments}%")
@@ -176,14 +163,11 @@ def main():
 
             # Generate attachment for this inclusive email based on percentage
             if random.random() < args.attachments / 100.0:
-                safe_subject = "".join(
-                    [c if c.isalnum() else "_" for c in email_obj.subject]
-                )[:40]
                 doc_types = ["report", "proposal", "notes", "analysis", "summary"]
                 doc_type = random.choice(doc_types)
                 logging.info(f"  Generating attachment (type: {doc_type})...")
                 filepath = gen.file_gen.generate_random_file(
-                    safe_subject, doc_type=doc_type, context=email_obj.body[:200]
+                    doc_type=doc_type, context=email_obj.body[:200]
                 )
                 logging.info(f"  Attachment generated: {filepath}")
                 filename = os.path.basename(filepath)
@@ -209,9 +193,7 @@ def main():
                 try:
                     os.remove(att_path)
                 except Exception as e:
-                    print(
-                        f"Warning: Could not remove original attachment {att_path}: {e}"
-                    )
+                    logging.warning(f"Could not remove original attachment {att_path}: {e}")
 
     except Exception as e:
         logging.error(f"CRITICAL ERROR: {e}")
