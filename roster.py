@@ -1,9 +1,8 @@
 import json
 import os
-from faker import Faker
 import random
 
-fake = Faker()
+from faker_instance import fake
 
 class RosterGenerator:
     def __init__(self, company_name=None):

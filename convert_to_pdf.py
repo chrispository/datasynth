@@ -5,6 +5,7 @@ import re
 from email import policy
 from email.parser import BytesParser
 from fpdf import FPDF
+from fpdf.enums import XPos, YPos
 from pypdf import PdfWriter, PdfReader
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -59,11 +60,6 @@ from pdf_utils import init_pdf
 
 class PDFConverter:
     def __init__(self, output_path):
-        from fpdf.enums import XPos, YPos
-
-        self.XPos = XPos
-        self.YPos = YPos
-
         self.output_path = output_path
 
         # Use shared initialization
@@ -73,6 +69,33 @@ class PDFConverter:
         if self.pdf.page_no() == 0:
             self.pdf.add_page()
             self.pdf.set_font("DejaVu", size=10)
+
+    def _render_email_headers(self, headers):
+        """Render email headers with label bold, value regular."""
+        for label, value in headers:
+            self.pdf.set_font("DejaVu", "B", 10)
+            label_width = self.pdf.get_string_width(label) + 2
+            self.pdf.cell(
+                label_width, 6, text=label, new_x=XPos.RIGHT, new_y=YPos.TOP
+            )
+
+            self.pdf.set_font("DejaVu", "", 10)
+            self.pdf.multi_cell(
+                0,
+                6,
+                text=sanitize_text(value),
+                new_x=XPos.LMARGIN,
+                new_y=YPos.NEXT,
+            )
+
+    def _render_separator_line(self):
+        """Render a horizontal separator line."""
+        self.pdf.ln(3)
+        self.pdf.set_draw_color(180, 180, 180)
+        y = self.pdf.get_y()
+        self.pdf.line(10, y, 200, y)
+        self.pdf.ln(5)
+        self.pdf.set_draw_color(0, 0, 0)
 
     def add_eml(self, file_path):
         data = parse_eml(file_path)
@@ -88,30 +111,8 @@ class PDFConverter:
             ("To:", data["to"]),
             ("Subject:", data["subject"]),
         ]
-
-        for label, value in headers:
-            self.pdf.set_font("DejaVu", "B", 10)
-            label_width = self.pdf.get_string_width(label) + 2
-            self.pdf.cell(
-                label_width, 6, text=label, new_x=self.XPos.RIGHT, new_y=self.YPos.TOP
-            )
-
-            self.pdf.set_font("DejaVu", "", 10)
-            self.pdf.multi_cell(
-                0,
-                6,
-                text=sanitize_text(value),
-                new_x=self.XPos.LMARGIN,
-                new_y=self.YPos.NEXT,
-            )
-
-        self.pdf.ln(3)
-
-        self.pdf.set_draw_color(180, 180, 180)
-        y = self.pdf.get_y()
-        self.pdf.line(10, y, 200, y)
-        self.pdf.ln(5)
-        self.pdf.set_draw_color(0, 0, 0)
+        self._render_email_headers(headers)
+        self._render_separator_line()
 
         # Body
         self.pdf.set_font("DejaVu", "", 10)
@@ -177,30 +178,8 @@ class PDFConverter:
         if "Attachments:" in headers:
             display_headers.append(("Attachments:", headers["Attachments:"]))
 
-        for label, value in display_headers:
-            self.pdf.set_font("DejaVu", "B", 10)
-            label_width = self.pdf.get_string_width(label) + 2
-            self.pdf.cell(
-                label_width, 6, text=label, new_x=self.XPos.RIGHT, new_y=self.YPos.TOP
-            )
-
-            self.pdf.set_font("DejaVu", "", 10)
-            self.pdf.multi_cell(
-                0,
-                6,
-                text=sanitize_text(value),
-                new_x=self.XPos.LMARGIN,
-                new_y=self.YPos.NEXT,
-            )
-
-        self.pdf.ln(3)
-
-        # Separator line
-        self.pdf.set_draw_color(180, 180, 180)  # Light gray
-        y = self.pdf.get_y()
-        self.pdf.line(10, y, 200, y)
-        self.pdf.ln(5)
-        self.pdf.set_draw_color(0, 0, 0)  # Back to black
+        self._render_email_headers(display_headers)
+        self._render_separator_line()
 
         self.pdf.set_font("DejaVu", "", 10)
         # Basic markdown-to-print cleanup
@@ -211,8 +190,8 @@ class PDFConverter:
             0,
             5,
             text=sanitize_text(body, collapse_whitespace=False),
-            new_x=self.XPos.LMARGIN,
-            new_y=self.YPos.NEXT,
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
         )
 
     def add_docx(self, file_path):
@@ -245,8 +224,8 @@ class PDFConverter:
                 10,
                 text=sanitize_text(title),
                 align="C",
-                new_x=self.XPos.LMARGIN,
-                new_y=self.YPos.NEXT,
+                new_x=XPos.LMARGIN,
+                new_y=YPos.NEXT,
             )
             self.pdf.ln(5)
 
@@ -261,8 +240,8 @@ class PDFConverter:
                         0,
                         5,
                         text=clean_text,
-                        new_x=self.XPos.LMARGIN,
-                        new_y=self.YPos.NEXT,
+                        new_x=XPos.LMARGIN,
+                        new_y=YPos.NEXT,
                     )
             self.pdf.ln(10)
         except Exception as e:

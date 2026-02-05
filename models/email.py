@@ -3,9 +3,8 @@ Email and Attachment data models.
 """
 
 import uuid
-from faker import Faker
 
-fake = Faker()
+from faker_instance import fake
 
 
 def parse_display(display):

@@ -141,7 +141,7 @@
     }
   ],
   "convert_combine": true,
-  "bates_prefix_index": 3,
+  "bates_prefix": "ROBOT",
   "bates_separator_index": 1,
   "bates_start": 1,
   "bates_padding": 7

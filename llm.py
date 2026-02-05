@@ -1,4 +1,5 @@
 import os
+import random
 import google.generativeai as genai
 from dotenv import load_dotenv
 
@@ -31,7 +32,6 @@ class GeminiGenerator:
             return None
 
     def generate_email(self, sender, recipients, topic, context=None, used_subjects=None):
-        import random
         styles = [
             "direct and concise",
             "formal and detailed",

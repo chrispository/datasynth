@@ -6,12 +6,12 @@ import os
 import random
 import datetime
 import logging
-from faker import Faker
+import uuid
 
 from .email import Email, Attachment, parse_display
 from .file_generator import FileGenerator
 
-fake = Faker()
+from faker_instance import fake
 
 
 class ThreadGenerator:
@@ -261,7 +261,6 @@ class ThreadGenerator:
         The forwarded email contains the parent's full body as quoted content,
         making it "inclusive" of the original thread's content.
         """
-        import uuid
         
         # Pick sender from thread participants for realism
         thread_participants = self._get_thread_participants(parent_email.thread_id)

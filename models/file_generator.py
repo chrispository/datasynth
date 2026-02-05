@@ -5,13 +5,12 @@ File generator for creating PDF and DOCX attachments.
 import os
 import re
 import random
-from faker import Faker
 from docx import Document
 from docx.enum.section import WD_ORIENT
 from docx.shared import Inches
 from pdf_utils import init_pdf
 
-fake = Faker()
+from faker_instance import fake
 
 
 class FileGenerator:
