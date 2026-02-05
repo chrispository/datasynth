@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 from models import ThreadGenerator, Attachment, save_as_markdown
 from roster import RosterGenerator
-from llm import GeminiGenerator
+from llm import GeminiGenerator, OpenRouterGenerator
 from utils import sanitize_filename
 
 DEFAULT_ROSTER_SIZE = 25
@@ -59,12 +59,26 @@ def main():
             "--roster", type=str, default="roster.json", help="Path to roster file"
         )
         parser.add_argument(
-            "--gemini", action="store_true", help="Use Gemini LLM for email generation"
+            "--gemini", action="store_true", help="Use Gemini LLM (shorthand for --provider gemini)"
         )
         parser.add_argument(
-            "--model", type=str, default="gemini-2.5-flash", help="Gemini model to use"
+            "--provider", type=str, default=None, choices=["gemini", "openrouter"],
+            help="LLM provider to use"
+        )
+        parser.add_argument(
+            "--model", type=str, default="gemini-2.5-flash", help="Model to use"
+        )
+        parser.add_argument(
+            "--reply-pct", type=int, default=80, help="Reply probability (0-100)"
+        )
+        parser.add_argument(
+            "--forward-pct", type=int, default=10, help="Forward probability (0-100)"
         )
         args = parser.parse_args()
+
+        # Resolve provider
+        if args.gemini and not args.provider:
+            args.provider = "gemini"
 
         # Handle Roster
         roster_gen = RosterGenerator()
@@ -79,7 +93,7 @@ def main():
 
         # Handle LLM
         llm = None
-        if args.gemini:
+        if args.provider == "gemini":
             if not os.getenv("GEMINI_API_KEY"):
                 logging.warning("Gemini API key not found.")
                 key = input("Please paste your Gemini API key: ").strip()
@@ -89,11 +103,19 @@ def main():
                     os.environ["GEMINI_API_KEY"] = key
                     logging.info("API key saved to .env")
                 else:
-                    logging.error("Gemini API key is required for --gemini mode.")
+                    logging.error("Gemini API key is required.")
                     sys.exit(1)
 
             logging.info(f"Initializing Gemini LLM with model: {args.model}...")
             llm = GeminiGenerator(model_name=args.model)
+
+        elif args.provider == "openrouter":
+            if not os.getenv("OPENROUTER_API_KEY"):
+                logging.error("OPENROUTER_API_KEY not found in environment.")
+                sys.exit(1)
+
+            logging.info(f"Initializing OpenRouter LLM with model: {args.model}...")
+            llm = OpenRouterGenerator(model_name=args.model)
 
         # Create a topic-based subfolder for this run's output
         if args.topic:
@@ -119,12 +141,21 @@ def main():
         logging.getLogger().addHandler(file_handler)
         logging.info(f"Output folder: {run_output_dir}")
 
+        # Build action weights from CLI args
+        terminate_pct = max(0, 100 - args.reply_pct - args.forward_pct)
+        action_weights = {
+            "reply": args.reply_pct / 100.0,
+            "forward": args.forward_pct / 100.0,
+            "nothing": terminate_pct / 100.0,
+        }
+
         gen = ThreadGenerator(
             roster=roster,
             llm=llm,
             output_dir=run_output_dir,
             topic=args.topic,
             attachment_percent=args.attachments,
+            action_weights=action_weights,
         )
 
         target_files = args.files

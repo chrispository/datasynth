@@ -104,7 +104,9 @@ async fn run_app<B: ratatui::backend::Backend>(
                         }
                     }
                     KeyCode::Tab => {
-                        if app.focus == Focus::Main && app.current_section == Section::Topics {
+                        if app.focus == Focus::Main && app.current_section == Section::Model {
+                            app.toggle_provider();
+                        } else if app.focus == Focus::Main && app.current_section == Section::Topics {
                             app.cycle_topic_panel();
                         } else if app.focus == Focus::Main && app.current_section == Section::Convert {
                             app.convert_active_area = (app.convert_active_area + 1) % 3;

@@ -8,6 +8,7 @@ pub enum Section {
     Quantity,
     Topics,
     Companies,
+    Preview,
     Run,
     Convert,
     Bates,
@@ -21,6 +22,7 @@ impl Section {
             Section::Quantity => "Quantity",
             Section::Topics => "Topics",
             Section::Companies => "Companies",
+            Section::Preview => "Preview",
             Section::Run => "Run",
             Section::Convert => "Convert",
             Section::Bates => "Bates",
@@ -28,12 +30,13 @@ impl Section {
         }
     }
 
-    pub fn all() -> [Section; 8] {
+    pub fn all() -> [Section; 9] {
         [
             Section::Model,
             Section::Quantity,
             Section::Topics,
             Section::Companies,
+            Section::Preview,
             Section::Run,
             Section::Convert,
             Section::Bates,
@@ -68,6 +71,10 @@ const SETTINGS_FILE: &str = "settings.json";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub selected_model_index: usize,
+    #[serde(default)]
+    pub provider_index: usize,
+    #[serde(default)]
+    pub openrouter_model_index: usize,
     pub total_files: u32,
     pub percent_attachments: u32,
     pub selected_topics: Vec<String>,
@@ -82,9 +89,16 @@ pub struct Settings {
     pub bates_start: u32,
     #[serde(default = "default_bates_padding")]
     pub bates_padding: u32,
+    #[serde(default = "default_reply_pct")]
+    pub reply_percent: u32,
+    #[serde(default = "default_forward_pct")]
+    pub forward_percent: u32,
     #[serde(default)]
     pub theme_index: usize,
 }
+
+fn default_reply_pct() -> u32 { 80 }
+fn default_forward_pct() -> u32 { 10 }
 
 fn default_bates_prefix() -> String { "BATES".to_string() }
 fn default_bates_start() -> u32 { 1 }
@@ -109,16 +123,24 @@ pub struct App {
     pub current_section: Section,
     pub sidebar_index: usize,
     pub focus: Focus,
-    
-    // Model
+
+    // Provider & Model
+    pub provider_index: usize,
     pub api_key: String,
+    pub openrouter_api_key: String,
     pub available_models: Vec<String>,
     pub selected_model_index: usize,
+    pub gemini_models: Vec<String>,
+    pub openrouter_models: Vec<String>,
+    pub gemini_model_index: usize,
+    pub openrouter_model_index: usize,
     
     // Quantity
     pub total_files: u32,
     pub percent_attachments: u32,
-    pub quantity_field_index: usize, // 0 = total_files, 1 = percent_attachments
+    pub reply_percent: u32,
+    pub forward_percent: u32,
+    pub quantity_field_index: usize, // 0=total_files, 1=attachments, 2=reply%, 3=forward%
     
     // Topics
     pub generated_topics: Vec<String>,
@@ -158,39 +180,69 @@ pub struct App {
     pub bates_file_index: usize,
     pub is_stamping: bool,
 
+    // Preview
+    pub preview_scroll: u16,
+
     // Settings / Theme
     pub theme_index: usize,
     pub settings_cursor: usize,
 }
 
 pub const BATES_SEPARATORS: &[&str] = &["-", "_", "."];
+pub const PROVIDERS: &[&str] = &["Gemini", "OpenRouter"];
 
 impl App {
     pub fn new() -> Self {
-        // Load API key from .env
+        // Load API keys from .env
         let api_key = dotenv::var("GEMINI_API_KEY").unwrap_or_default();
-        
-        let available_models = vec![
+        let openrouter_api_key = dotenv::var("OPENROUTER_API_KEY").unwrap_or_default();
+
+        let gemini_models = vec![
             "gemini-2.5-flash".to_string(),
             "gemini-2.5-pro".to_string(),
             "gemini-3-pro-preview".to_string(),
             "gemini-3-flash-preview".to_string(),
         ];
-        
+
+        let openrouter_models = vec![
+            "moonshotai/kimi-k2".to_string(),
+        ];
+
         let (log_tx, log_rx) = tokio::sync::mpsc::unbounded_channel();
-        
+
         // Try to load saved settings
         let saved = Settings::load();
-        
+
+        let provider_index = saved.as_ref().map(|s| s.provider_index).unwrap_or(0);
+        let gemini_model_index = saved.as_ref().map(|s| s.selected_model_index).unwrap_or(0);
+        let openrouter_model_index = saved.as_ref().map(|s| s.openrouter_model_index).unwrap_or(0);
+
+        let available_models = match provider_index {
+            0 => gemini_models.clone(),
+            _ => openrouter_models.clone(),
+        };
+        let selected_model_index = match provider_index {
+            0 => gemini_model_index,
+            _ => openrouter_model_index,
+        };
+
         let mut app = Self {
             current_section: Section::Model,
             sidebar_index: 0,
             focus: Focus::Sidebar,
+            provider_index,
             api_key,
+            openrouter_api_key,
             available_models,
-            selected_model_index: saved.as_ref().map(|s| s.selected_model_index).unwrap_or(0),
+            selected_model_index,
+            gemini_models,
+            openrouter_models,
+            gemini_model_index,
+            openrouter_model_index,
             total_files: saved.as_ref().map(|s| s.total_files).unwrap_or(25),
             percent_attachments: saved.as_ref().map(|s| s.percent_attachments).unwrap_or(30),
+            reply_percent: saved.as_ref().map(|s| s.reply_percent).unwrap_or(80),
+            forward_percent: saved.as_ref().map(|s| s.forward_percent).unwrap_or(10),
             quantity_field_index: 0,
             generated_topics: Vec::new(),
             selected_topics: saved.as_ref().map(|s| s.selected_topics.clone()).unwrap_or_default(),
@@ -218,6 +270,7 @@ impl App {
             bates_pdf_files: Vec::new(),
             bates_file_index: 0,
             is_stamping: false,
+            preview_scroll: 0,
             theme_index: saved.as_ref().map(|s| s.theme_index).unwrap_or(0),
             settings_cursor: saved.as_ref().map(|s| s.theme_index).unwrap_or(0),
         };
@@ -235,8 +288,15 @@ impl App {
     }
     
     pub fn save_settings(&self) {
+        // Save current provider's model index to the right slot
+        let (gmi, ormi) = match self.provider_index {
+            0 => (self.selected_model_index, self.openrouter_model_index),
+            _ => (self.gemini_model_index, self.selected_model_index),
+        };
         let settings = Settings {
-            selected_model_index: self.selected_model_index,
+            selected_model_index: gmi,
+            provider_index: self.provider_index,
+            openrouter_model_index: ormi,
             total_files: self.total_files,
             percent_attachments: self.percent_attachments,
             selected_topics: self.selected_topics.clone(),
@@ -247,6 +307,8 @@ impl App {
             bates_separator_index: self.bates_separator_index,
             bates_start: self.bates_start,
             bates_padding: self.bates_padding,
+            reply_percent: self.reply_percent,
+            forward_percent: self.forward_percent,
             theme_index: self.theme_index,
         };
 
@@ -257,6 +319,122 @@ impl App {
 
     pub fn theme(&self) -> &'static ui::Theme {
         &ui::THEMES[self.theme_index.min(ui::THEMES.len() - 1)].theme
+    }
+
+    pub fn toggle_provider(&mut self) {
+        // Save current selection
+        match self.provider_index {
+            0 => self.gemini_model_index = self.selected_model_index,
+            _ => self.openrouter_model_index = self.selected_model_index,
+        }
+        // Toggle
+        self.provider_index = (self.provider_index + 1) % PROVIDERS.len();
+        // Load new provider's models
+        match self.provider_index {
+            0 => {
+                self.available_models = self.gemini_models.clone();
+                self.selected_model_index = self.gemini_model_index;
+            }
+            _ => {
+                self.available_models = self.openrouter_models.clone();
+                self.selected_model_index = self.openrouter_model_index;
+            }
+        }
+        self.log(format!("Provider: {}", PROVIDERS[self.provider_index]));
+    }
+
+    pub fn current_api_key(&self) -> &str {
+        match self.provider_index {
+            0 => &self.api_key,
+            _ => &self.openrouter_api_key,
+        }
+    }
+
+    pub fn provider_name(&self) -> &str {
+        match self.provider_index {
+            0 => "gemini",
+            _ => "openrouter",
+        }
+    }
+
+    pub fn build_preview_prompt(&self) -> Vec<String> {
+        let mut lines = Vec::new();
+        let terminate = 100u32.saturating_sub(self.reply_percent + self.forward_percent);
+
+        // Thread logic explainer
+        lines.push("── Thread Generation Logic ──".into());
+        lines.push(String::new());
+        lines.push("Each file = one inclusive (leaf) email thread.".into());
+        lines.push("The generator creates a root email, then iterates:".into());
+        lines.push(format!("  Reply:     {}%  (continue thread with reply)", self.reply_percent));
+        lines.push(format!("  Forward:   {}%  (forward to new recipients)", self.forward_percent));
+        lines.push(format!("  Terminate: {}%  (end the chain)", terminate));
+        lines.push(String::new());
+        lines.push("Replies keep the same thread; forwards start a new".into());
+        lines.push("thread with new recipients. Each inclusive email".into());
+        lines.push("contains the full quoted history of its branch.".into());
+        lines.push(String::new());
+
+        // Sample prompt
+        lines.push("── Sample Email Prompt ──".into());
+        lines.push(String::new());
+
+        let topic = self.selected_topics.get(0)
+            .map(|s| s.as_str())
+            .unwrap_or("General check-in");
+
+        let (sender_name, sender_title, sender_dept) = if let Some(company) = self.companies.get(0) {
+            if let Some(emp) = company.employees.get(0) {
+                (emp.name.as_str(), emp.title.as_str(), emp.department.as_str())
+            } else {
+                ("John Smith", "Manager", "Engineering")
+            }
+        } else {
+            ("John Smith", "Manager", "Engineering")
+        };
+
+        let recipients: Vec<&str> = if let Some(company) = self.companies.get(0) {
+            company.employees.iter().skip(1).take(2).map(|e| e.name.as_str()).collect()
+        } else {
+            vec!["Jane Doe", "Bob Wilson"]
+        };
+
+        lines.push("Generate a professional business email.".into());
+        lines.push(format!("Sender: {} ({} in {})", sender_name, sender_title, sender_dept));
+        lines.push(format!("Recipients: {}", recipients.join(", ")));
+        lines.push(format!("Topic: {}", topic));
+        lines.push("Style/Tone: [randomly selected at runtime]".into());
+        lines.push(String::new());
+        lines.push("INSTRUCTIONS:".into());
+        lines.push("1. This is the start of a new email thread.".into());
+        lines.push("2. Create a specific, interesting Subject line".into());
+        lines.push("   relevant to the topic (avoid generic titles).".into());
+        lines.push("3. Write the body of the email initiating the".into());
+        lines.push("   discussion.".into());
+        lines.push(String::new());
+        lines.push("Format: Subject: [Subject]\\n\\n[Body]".into());
+        lines.push(String::new());
+
+        // Reply variant
+        lines.push("── Reply Variant (added for replies) ──".into());
+        lines.push(String::new());
+        lines.push("CONTEXT (Previous Email Thread):".into());
+        lines.push("  [previous email body inserted here]".into());
+        lines.push(String::new());
+        lines.push("+ Address specific points raised in context".into());
+        lines.push("+ Do NOT repeat the full history".into());
+        lines.push("+ Keep subject consistent (Re: ...)".into());
+        lines.push(String::new());
+
+        // Provider info
+        lines.push("── Provider ──".into());
+        lines.push(String::new());
+        lines.push(format!("Provider: {}", PROVIDERS[self.provider_index]));
+        lines.push(format!("Model: {}", self.available_models.get(self.selected_model_index).map(|s| s.as_str()).unwrap_or("none")));
+        let key = self.current_api_key();
+        lines.push(format!("API Key: {}", if key.is_empty() { "NOT SET" } else { "configured" }));
+
+        lines
     }
 
     pub fn log(&mut self, msg: impl Into<String>) {
@@ -332,10 +510,11 @@ impl App {
                 self.selected_model_index = self.available_models.len() - 1;
             }
         } else if self.focus == Focus::Main && self.current_section == Section::Quantity {
-            // Cycle through quantity fields
             if self.quantity_field_index > 0 {
                 self.quantity_field_index -= 1;
             }
+        } else if self.focus == Focus::Main && self.current_section == Section::Preview {
+            self.preview_scroll = self.preview_scroll.saturating_sub(1);
         } else if self.focus == Focus::Main && self.current_section == Section::Topics {
             // Navigate within topics based on current panel
             match self.topic_panel {
@@ -394,10 +573,11 @@ impl App {
             // Cycle through models
             self.selected_model_index = (self.selected_model_index + 1) % self.available_models.len();
         } else if self.focus == Focus::Main && self.current_section == Section::Quantity {
-            // Cycle through quantity fields (2 fields: 0, 1)
-            if self.quantity_field_index < 1 {
+            if self.quantity_field_index < 3 {
                 self.quantity_field_index += 1;
             }
+        } else if self.focus == Focus::Main && self.current_section == Section::Preview {
+            self.preview_scroll = self.preview_scroll.saturating_add(1);
         } else if self.focus == Focus::Main && self.current_section == Section::Topics {
             // Navigate within topics based on current panel
             match self.topic_panel {
@@ -472,14 +652,24 @@ impl App {
         match self.quantity_field_index {
             0 => self.total_files = self.total_files.saturating_add(5).min(500),
             1 => self.percent_attachments = self.percent_attachments.saturating_add(5).min(100),
+            2 => {
+                let max = 100u32.saturating_sub(self.forward_percent);
+                self.reply_percent = self.reply_percent.saturating_add(5).min(max);
+            }
+            3 => {
+                let max = 100u32.saturating_sub(self.reply_percent);
+                self.forward_percent = self.forward_percent.saturating_add(5).min(max);
+            }
             _ => {}
         }
     }
-    
+
     pub fn decrement_quantity(&mut self) {
         match self.quantity_field_index {
             0 => self.total_files = self.total_files.saturating_sub(5).max(1),
             1 => self.percent_attachments = self.percent_attachments.saturating_sub(5),
+            2 => self.reply_percent = self.reply_percent.saturating_sub(5),
+            3 => self.forward_percent = self.forward_percent.saturating_sub(5),
             _ => {}
         }
     }
@@ -725,13 +915,16 @@ impl App {
         
         self.is_generating = true;
         self.log("Starting email generation...");
-        
+
         let tx = self.log_tx.clone();
-        let roster_path = "roster.json".to_string(); // Save to root
+        let roster_path = "roster.json".to_string();
         let model = self.available_models[self.selected_model_index].clone();
-        let api_key = self.api_key.clone();
+        let api_key = self.current_api_key().to_string();
+        let provider = self.provider_name().to_string();
         let steps = self.total_files.to_string();
         let attachments = self.percent_attachments.to_string();
+        let reply_pct = self.reply_percent.to_string();
+        let forward_pct = self.forward_percent.to_string();
         let topic = self.selected_topics.get(0).cloned().unwrap_or_default();
         
         // Save the first company to roster.json (matching Python's format)
@@ -759,7 +952,7 @@ impl App {
         
         // Spawn background task
         tokio::spawn(async move {
-            import_process_logic(tx, model, api_key, steps, attachments, topic).await;
+            import_process_logic(tx, provider, model, api_key, steps, attachments, reply_pct, forward_pct, topic).await;
         });
     }
 
@@ -984,10 +1177,13 @@ async fn bates_process_logic(
 
 async fn import_process_logic(
     tx: tokio::sync::mpsc::UnboundedSender<String>,
+    provider: String,
     model: String,
     api_key: String,
     steps: String,
     attachments: String,
+    reply_pct: String,
+    forward_pct: String,
     topic: String,
 ) {
     use tokio::process::Command;
@@ -996,18 +1192,24 @@ async fn import_process_logic(
 
     let mut cmd = Command::new("python3");
     cmd.arg("generate_emails.py")
-        .arg("--files").arg(steps)  // steps var is actually # of inclusive files now
+        .arg("--files").arg(steps)
         .arg("--attachments").arg(attachments)
-        .arg("--roster").arg("roster.json") // It's in the root now
-        .arg("--gemini")
-        .arg("--model").arg(model);
-    
+        .arg("--roster").arg("roster.json")
+        .arg("--provider").arg(&provider)
+        .arg("--model").arg(model)
+        .arg("--reply-pct").arg(reply_pct)
+        .arg("--forward-pct").arg(forward_pct);
+
     if !topic.is_empty() {
         cmd.arg("--topic").arg(topic);
     }
-    
-    // Pass API Key
-    cmd.env("GEMINI_API_KEY", api_key);
+
+    // Pass the appropriate API key
+    match provider.as_str() {
+        "gemini" => { cmd.env("GEMINI_API_KEY", api_key); }
+        "openrouter" => { cmd.env("OPENROUTER_API_KEY", api_key); }
+        _ => { cmd.env("GEMINI_API_KEY", api_key); }
+    }
     
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());

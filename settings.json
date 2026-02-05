@@ -1,137 +1,141 @@
 {
-  "selected_model_index": 0,
-  "total_files": 130,
+  "selected_model_index": 2,
+  "provider_index": 1,
+  "openrouter_model_index": 0,
+  "total_files": 65,
   "percent_attachments": 15,
-  "selected_topics": [],
+  "selected_topics": [
+    "Textile Weaving Loom Automation"
+  ],
   "company_size": 10,
   "companies": [
     {
-      "company_name": "Unified Nexus",
-      "domain": "unifiednexus.com",
+      "company_name": "Frontier Innovations",
+      "domain": "frontierinnovations.com",
       "employees": [
         {
-          "name": "Aminata Sow",
-          "email": "aminata.sow@unifiednexus.com",
+          "name": "Joseph Carter",
+          "email": "joseph.carter@frontierinnovations.com",
           "department": "Engineering",
           "title": "Manager"
         },
         {
-          "name": "Yaa Asantewaa",
-          "email": "yaa.asantewaa@unifiednexus.com",
+          "name": "George Long",
+          "email": "george.long@frontierinnovations.com",
           "department": "Marketing",
           "title": "Specialist"
         },
         {
-          "name": "Charles Perez",
-          "email": "charles.perez@unifiednexus.com",
+          "name": "Michael Collins",
+          "email": "michael.collins@frontierinnovations.com",
           "department": "Sales",
           "title": "Director"
         },
         {
-          "name": "Fatoumata Bah",
-          "email": "fatoumata.bah@unifiednexus.com",
+          "name": "Carlos Mendoza",
+          "email": "carlos.mendoza@frontierinnovations.com",
           "department": "HR",
           "title": "Lead"
         },
         {
-          "name": "Christopher Russell",
-          "email": "christopher.russell@unifiednexus.com",
+          "name": "Dmitri Petrov",
+          "email": "dmitri.petrov@frontierinnovations.com",
           "department": "Finance",
           "title": "Associate"
         },
         {
-          "name": "Amina Diallo",
-          "email": "amina.diallo@unifiednexus.com",
+          "name": "Diego Fernandez",
+          "email": "diego.fernandez@frontierinnovations.com",
           "department": "Legal",
           "title": "Senior Engineer"
         },
         {
-          "name": "Katja Weber",
-          "email": "katja.weber@unifiednexus.com",
+          "name": "Charles Coleman",
+          "email": "charles.coleman@frontierinnovations.com",
           "department": "Product",
           "title": "VP"
         },
         {
-          "name": "James Rivera",
-          "email": "james.rivera@unifiednexus.com",
+          "name": "Christopher Jenkins",
+          "email": "christopher.jenkins@frontierinnovations.com",
           "department": "Engineering",
           "title": "Manager"
         },
         {
-          "name": "Frank Murphy",
-          "email": "frank.murphy@unifiednexus.com",
+          "name": "Thomas Anderson",
+          "email": "thomas.anderson@frontierinnovations.com",
           "department": "Marketing",
           "title": "Specialist"
         },
         {
-          "name": "David Stewart",
-          "email": "david.stewart@unifiednexus.com",
+          "name": "Daniel Bell",
+          "email": "daniel.bell@frontierinnovations.com",
           "department": "Sales",
           "title": "Director"
         }
       ]
     },
     {
-      "company_name": "Streamline Solutions",
-      "domain": "streamlinesolutions.com",
+      "company_name": "Summit Technologies",
+      "domain": "summittechnologies.com",
       "employees": [
         {
-          "name": "Javier Reyes",
-          "email": "javier.reyes@streamlinesolutions.com",
+          "name": "Christopher Ramirez",
+          "email": "christopher.ramirez@summittechnologies.com",
           "department": "Engineering",
           "title": "Manager"
         },
         {
-          "name": "Maria Rodriguez",
-          "email": "maria.rodriguez@streamlinesolutions.com",
+          "name": "Isabella Garcia",
+          "email": "isabella.garcia@summittechnologies.com",
           "department": "Marketing",
           "title": "Specialist"
         },
         {
-          "name": "Elena Fernandez",
-          "email": "elena.fernandez@streamlinesolutions.com",
+          "name": "James Martinez",
+          "email": "james.martinez@summittechnologies.com",
           "department": "Sales",
           "title": "Director"
         },
         {
-          "name": "Richard Barnes",
-          "email": "richard.barnes@streamlinesolutions.com",
+          "name": "Michael Bennett",
+          "email": "michael.bennett@summittechnologies.com",
           "department": "HR",
           "title": "Lead"
         },
         {
-          "name": "David Wood",
-          "email": "david.wood@streamlinesolutions.com",
+          "name": "Thomas Henderson",
+          "email": "thomas.henderson@summittechnologies.com",
           "department": "Finance",
           "title": "Associate"
         },
         {
-          "name": "Michael Adams",
-          "email": "michael.adams@streamlinesolutions.com",
+          "name": "Robert Sanders",
+          "email": "robert.sanders@summittechnologies.com",
           "department": "Legal",
           "title": "Senior Engineer"
         },
         {
-          "name": "James Williams",
-          "email": "james.williams@streamlinesolutions.com",
+          "name": "James Kelly",
+          "email": "james.kelly@summittechnologies.com",
           "department": "Product",
           "title": "VP"
         },
         {
-          "name": "Lucia Morales",
-          "email": "lucia.morales@streamlinesolutions.com",
+          "name": "Isabella Garcia",
+          "email": "isabella.garcia@summittechnologies.com",
           "department": "Engineering",
           "title": "Manager"
         },
         {
-          "name": "David Simmons",
-          "email": "david.simmons@streamlinesolutions.com",
+          "name": "Robert Brown",
+          "email": "robert.brown@summittechnologies.com",
           "department": "Marketing",
           "title": "Specialist"
         },
         {
-          "name": "Bjorn Andersen",
-          "email": "bjorn.andersen@streamlinesolutions.com",
+          "name": "Christopher Morgan",
+          "email": "christopher.morgan@summittechnologies.com",
           "department": "Sales",
           "title": "Director"
         }
@@ -143,5 +147,7 @@
   "bates_separator_index": 1,
   "bates_start": 1,
   "bates_padding": 7,
-  "theme_index": 1
+  "reply_percent": 90,
+  "forward_percent": 5,
+  "theme_index": 0
 }

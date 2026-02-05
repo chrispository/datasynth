@@ -4,6 +4,7 @@ import random
 from typing import Optional
 
 import google.generativeai as genai
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -113,5 +114,110 @@ class GeminiGenerator:
                 # If no subject line found, assume all text is body and subject is generic (or handled by caller)
                 body = content
                 
+            return subject, body
+        return None, None
+
+
+class OpenRouterGenerator:
+    def __init__(self, model_name: str = 'anthropic/claude-sonnet-4') -> None:
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY not found in environment variables or .env file")
+        self.client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=api_key,
+        )
+        self.model_name = model_name
+
+    def generate_email_content(self, prompt: str) -> Optional[str]:
+        try:
+            logging.info(f"  [LLM] Requesting content from OpenRouter ({self.model_name})...")
+            response = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            if response and response.choices and response.choices[0].message.content:
+                logging.info("  [LLM] Done.")
+                return response.choices[0].message.content
+            else:
+                logging.warning("  [LLM] Failed (Empty response).")
+                return None
+        except Exception as e:
+            logging.warning(f"  [LLM] Failed. Error generating content with OpenRouter: {e}")
+            return None
+
+    def generate_email(
+        self,
+        sender: dict,
+        recipients: list[dict],
+        topic: str,
+        context: Optional[str] = None,
+        used_subjects: Optional[list[str]] = None,
+    ) -> tuple[Optional[str], Optional[str]]:
+        styles = [
+            "direct and concise",
+            "formal and detailed",
+            "casual and friendly",
+            "slightly urgent",
+            "inquisitive",
+            "collaborative",
+            "apologetic but firm",
+            "enthusiastic"
+        ]
+        style = random.choice(styles)
+
+        prompt = f"""
+        Generate a professional business email.
+        Sender: {sender['name']} ({sender['title']} in {sender['department']})
+        Recipients: {', '.join([r['name'] for r in recipients])}
+        Topic: {topic}
+        Style/Tone: {style}
+        """
+
+        if context:
+            prompt += f"""
+
+            CONTEXT (Previous Email Thread):
+            {context}
+
+            INSTRUCTIONS:
+            1. You are replying to the email above.
+            2. Address specific points raised in the context.
+            3. Do NOT repeat the full context or history. Write ONLY the new body text of your reply.
+            4. Keep the subject consistent with the thread (Re: ...) but if this is a new thread, create a specific, interesting subject line (avoid "General check-in").
+            """
+        else:
+            prompt += f"""
+
+            INSTRUCTIONS:
+            1. This is the start of a new email thread.
+            2. Create a specific, interesting Subject line relevant to the topic (avoid generic titles like "Update" or "Hello").
+            3. Write the body of the email initiating the discussion.
+            """
+            if used_subjects:
+                prompt += f"""
+            4. IMPORTANT: Do NOT reuse or closely resemble any of these previously used subjects: {used_subjects}
+               Each new thread MUST have a distinctly different subject line.
+            """
+
+        prompt += "\n\nPlease provide the email in the following format:\nSubject: [Subject]\n\n[Body]"
+
+        content = self.generate_email_content(prompt)
+        if content:
+            lines = content.strip().split('\n')
+            subject = "No Subject"
+            body = content
+
+            subject_found = False
+            for i, line in enumerate(lines):
+                if line.lower().startswith("subject:"):
+                    subject = line[len("subject:"):].strip()
+                    body = '\n'.join(lines[i+1:]).strip()
+                    subject_found = True
+                    break
+
+            if not subject_found:
+                body = content
+
             return subject, body
         return None, None

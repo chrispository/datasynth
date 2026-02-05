@@ -171,7 +171,7 @@ fn render_sidebar(f: &mut Frame, app: &App, area: Rect) {
 
     // ACTIONS group
     lines.push(Line::from(Span::styled(" ACTIONS", header_style)));
-    for i in 4..7 {
+    for i in 4..8 {
         lines.push(section_line(i));
     }
 
@@ -179,7 +179,7 @@ fn render_sidebar(f: &mut Frame, app: &App, area: Rect) {
     lines.push(Line::from(Span::styled("──────────────────", divider_style)));
 
     // Settings
-    lines.push(section_line(7));
+    lines.push(section_line(8));
 
     let paragraph = Paragraph::new(lines).block(
         Block::default()
@@ -214,6 +214,7 @@ fn render_main_content(f: &mut Frame, app: &App, area: Rect) {
         Section::Quantity => render_quantity_section(f, app, inner),
         Section::Topics => render_topics_section(f, app, inner),
         Section::Companies => render_companies_section(f, app, inner),
+        Section::Preview => render_preview_section(f, app, inner),
         Section::Run => render_run_section(f, app, inner),
         Section::Convert => render_convert_section(f, app, inner),
         Section::Bates => render_bates_section(f, app, inner),
@@ -224,10 +225,13 @@ fn render_main_content(f: &mut Frame, app: &App, area: Rect) {
 fn render_quantity_section(f: &mut Frame, app: &App, area: Rect) {
     let theme = app.theme();
     let is_focused = app.focus == Focus::Main;
+    let terminate = 100u32.saturating_sub(app.reply_percent + app.forward_percent);
 
-    let fields = [
-        ("Total Files", app.total_files, 0),
-        ("Attachments %", app.percent_attachments, 1),
+    let fields: Vec<(&str, String, usize)> = vec![
+        ("Total Files", format!("{}", app.total_files), 0),
+        ("Attachments %", format!("{}", app.percent_attachments), 1),
+        ("Reply %", format!("{}", app.reply_percent), 2),
+        ("Forward %", format!("{}", app.forward_percent), 3),
     ];
 
     let mut lines = vec![
@@ -242,8 +246,8 @@ fn render_quantity_section(f: &mut Frame, app: &App, area: Rect) {
         Line::from(""),
     ];
 
-    for (name, value, idx) in fields {
-        let is_selected = app.quantity_field_index == idx && is_focused;
+    for (name, value, idx) in &fields {
+        let is_selected = app.quantity_field_index == *idx && is_focused;
         let prefix = if is_selected { "▸ " } else { "  " };
 
         let style = if is_selected {
@@ -257,7 +261,7 @@ fn render_quantity_section(f: &mut Frame, app: &App, area: Rect) {
         lines.push(Line::from(vec![
             Span::styled(format!("{}{}: ", prefix, name), style),
             Span::styled(
-                format!("{}", value),
+                value.clone(),
                 Style::default()
                     .fg(theme.accent)
                     .add_modifier(if is_selected {
@@ -268,6 +272,16 @@ fn render_quantity_section(f: &mut Frame, app: &App, area: Rect) {
             ),
         ]));
     }
+
+    // Show computed terminate %
+    lines.push(Line::from(vec![
+        Span::styled("  Terminate %: ", Style::default().fg(theme.text_dim)),
+        Span::styled(
+            format!("{}", terminate),
+            Style::default().fg(theme.text_dim),
+        ),
+        Span::styled(" (auto)", Style::default().fg(theme.border)),
+    ]));
 
     lines.push(Line::from(""));
     if is_focused {
@@ -287,10 +301,17 @@ fn render_quantity_section(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_model_section(f: &mut Frame, app: &App, area: Rect) {
+    use crate::app::PROVIDERS;
+
     let theme = app.theme();
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Length(3), Constraint::Min(0)])
+        .constraints([
+            Constraint::Length(1), // Hint
+            Constraint::Length(3), // API Key
+            Constraint::Length(1), // Provider
+            Constraint::Min(0),   // Model list
+        ])
         .split(area);
 
     // Hint
@@ -300,17 +321,22 @@ fn render_model_section(f: &mut Frame, app: &App, area: Rect) {
     ));
     f.render_widget(hint, chunks[0]);
 
-    // API Key status
-    let key_text = if app.api_key.is_empty() {
+    // API Key status (for current provider)
+    let current_key = app.current_api_key();
+    let key_label = match app.provider_index {
+        0 => "GEMINI_API_KEY",
+        _ => "OPENROUTER_API_KEY",
+    };
+    let key_text = if current_key.is_empty() {
         vec![Line::from(Span::styled(
-            "API Key: (not set - check .env file)",
+            format!("{}: (not set - check .env file)", key_label),
             Style::default().fg(theme.highlight),
         ))]
     } else {
         vec![Line::from(vec![
-            Span::raw("API Key: "),
+            Span::raw(format!("{}: ", key_label)),
             Span::styled(
-                "*".repeat(app.api_key.len()),
+                "*".repeat(current_key.len().min(20)),
                 Style::default().fg(theme.success),
             ),
             Span::styled(" ✓", Style::default().fg(theme.success)),
@@ -322,6 +348,19 @@ fn render_model_section(f: &mut Frame, app: &App, area: Rect) {
             .border_style(Style::default().fg(theme.border)),
     );
     f.render_widget(key_para, chunks[1]);
+
+    // Provider selector
+    let provider_line = Line::from(vec![
+        Span::styled(" Provider: ", Style::default().fg(theme.text)),
+        Span::styled(
+            PROVIDERS[app.provider_index],
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("  (Tab to switch)", Style::default().fg(theme.text_dim)),
+    ]);
+    f.render_widget(Paragraph::new(provider_line), chunks[2]);
 
     // Model selection
     let model_items: Vec<ListItem> = app
@@ -355,7 +394,7 @@ fn render_model_section(f: &mut Frame, app: &App, area: Rect) {
             }),
     );
 
-    f.render_widget(model_list, chunks[2]);
+    f.render_widget(model_list, chunks[3]);
 }
 
 fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
@@ -603,6 +642,39 @@ fn render_companies_section(f: &mut Frame, app: &App, area: Rect) {
         let paragraph = Paragraph::new(lines).block(block);
         f.render_widget(paragraph, company_chunks[idx]);
     }
+}
+
+fn render_preview_section(f: &mut Frame, app: &App, area: Rect) {
+    let theme = app.theme();
+    let preview_lines = app.build_preview_prompt();
+
+    let lines: Vec<Line> = preview_lines
+        .iter()
+        .map(|l| {
+            if l.starts_with("──") {
+                Line::from(Span::styled(
+                    l.as_str(),
+                    Style::default()
+                        .fg(theme.accent)
+                        .add_modifier(Modifier::BOLD),
+                ))
+            } else if l.starts_with("  ") || l.is_empty() {
+                Line::from(Span::styled(l.as_str(), Style::default().fg(theme.text)))
+            } else if l.starts_with('+') {
+                Line::from(Span::styled(l.as_str(), Style::default().fg(theme.success)))
+            } else {
+                Line::from(Span::styled(l.as_str(), Style::default().fg(theme.text)))
+            }
+        })
+        .collect();
+
+    let total_lines = lines.len();
+    let visible = area.height as usize;
+    let max_scroll = total_lines.saturating_sub(visible);
+    let scroll = (app.preview_scroll as usize).min(max_scroll) as u16;
+
+    let paragraph = Paragraph::new(lines).scroll((scroll, 0));
+    f.render_widget(paragraph, area);
 }
 
 fn render_run_section(f: &mut Frame, app: &App, area: Rect) {

@@ -44,6 +44,7 @@ class ThreadGenerator:
         output_dir: str = "output",
         topic: Optional[str] = None,
         attachment_percent: int = 30,
+        action_weights: Optional[dict] = None,
     ) -> None:
         self.emails = []  # Flat list of all emails generated
         self.threads = {}  # Map thread_id -> list of Email objects
@@ -71,6 +72,7 @@ class ThreadGenerator:
         self.file_gen = FileGenerator(output_dir, llm=llm, topic=topic)
         self.topic = topic
         self.attachment_percent = attachment_percent / 100.0
+        self.action_weights = action_weights if action_weights else ACTION_WEIGHTS
 
     def _tick_time(self) -> datetime.datetime:
         """Advance time by a random increment."""
@@ -425,8 +427,8 @@ class ThreadGenerator:
                 parent = unreplied_msgs[-1]  # Most recent unreplied message
 
                 action = random.choices(
-                    list(ACTION_WEIGHTS.keys()),
-                    weights=list(ACTION_WEIGHTS.values()),
+                    list(self.action_weights.keys()),
+                    weights=list(self.action_weights.values()),
                 )[0]
 
                 # Convert forward to reply if no new recipients available
