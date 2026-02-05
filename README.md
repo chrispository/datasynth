@@ -63,6 +63,19 @@ python bates_stamp.py --file output/quarterly_review_combined.pdf --prefix ROBOT
 
 **Email Generation** -- Creates threaded email conversations between employees of two fictional companies. Thread actions are weighted: replies (default 80%), forwards (10%), and end-of-chain (10%). At each step the generator rolls against these weights -- a reply continues the current thread, a forward spawns a new thread with different recipients, and end-of-chain means no further response is generated for that branch. Attachments (PDF, DOCX) are generated and embedded at a configurable rate.
 
+**DOCX Attachments** -- Generated DOCX files are styled with one of six visual profiles, randomly selected per document. Each profile defines body and heading fonts, colors, font sizes, line spacing, margins, table style, and header/footer type. Content is parsed from markdown (headings, bullets, numbered lists, bold) into native Word formatting. Documents have a 25% chance of landscape orientation and a 38% chance of including a data table (budget, status, comparison, or contacts).
+
+| Profile | Body Font | Heading Font | Style |
+|---|---|---|---|
+| Corporate Classic | Calibri | Cambria | Dark blue headings, 1" margins |
+| Modern Minimal | Arial | Arial | Near-black, tight spacing, 0.75" margins |
+| Formal Report | Times New Roman | Georgia | Dark red headings, 1.5 line spacing |
+| Tech Memo | Consolas | Calibri | Bright blue headings, single-spaced |
+| Executive Brief | Garamond | Garamond | Dark green headings, generous margins |
+| Compact Dense | Verdana | Tahoma | Gray, 9pt body, minimal margins |
+
+Headers vary by profile: company name, "CONFIDENTIAL", "DRAFT", or none. Footers include page numbers, dates, both, or none.
+
 **PDF Conversion** -- Parses `.eml` files and renders them as PDFs using DejaVuSans (bundled in `fonts/`) with headers, body text, and quoted history. Optionally combines all emails in a topic folder into a single document.
 
 **Bates Stamping** -- Overlays sequential reference numbers on combined PDFs with configurable prefix, separator, start number, and zero-padding.
