@@ -32,26 +32,15 @@ cargo run
 
 This launches the TUI where you can configure all generation parameters, run the pipeline, and convert output.
 
-### CLI Usage
+## TUI Workflow
 
-The Python scripts can also be run directly:
-
-```bash
-# Generate emails
-python generate_emails.py \
-  --files 25 \
-  --attachments 30 \
-  --topic "Quarterly Review" \
-  --roster roster.json \
-  --gemini \
-  --model gemini-2.5-flash
-
-# Convert .eml to PDF (with optional combine)
-python convert_to_pdf.py --folder output/quarterly_review --combine
-
-# Add Bates numbering
-python bates_stamp.py --file output/quarterly_review_combined.pdf --prefix ROBOT
-```
+1. **Select a provider and model** -- Use `Tab` to toggle between Gemini and OpenRouter, arrow keys to pick a model.
+2. **Load topics** -- Go to the Topics screen and press Enter to pull 25 random topics from `topics.txt` (309 total). Select which topics to generate.
+3. **Generate companies** -- Use the Companies screen to generate two fictional companies with employee rosters sourced from `companies.txt` and `people.txt`.
+4. **Configure** -- Set file count, attachment percentage, reply/forward/end-of-chain weights, and Bates options.
+5. **Preview prompt** -- Check the Prompt Preview screen to see exactly what will be sent to the LLM.
+6. **Generate** -- Run the pipeline. Output lands in `output/<topic_name>/`.
+7. **Convert & stamp** -- Convert to PDF and apply Bates numbering from within the TUI.
 
 ## Features
 
@@ -79,16 +68,6 @@ Headers vary by profile: company name, "CONFIDENTIAL", "DRAFT", or none. Footers
 **PDF Conversion** -- Parses `.eml` files and renders them as PDFs using DejaVuSans (bundled in `fonts/`) with headers, body text, and quoted history. Optionally combines all emails in a topic folder into a single document.
 
 **Bates Stamping** -- Overlays sequential reference numbers on combined PDFs with configurable prefix, separator, start number, and zero-padding.
-
-## TUI Workflow
-
-1. **Select a provider and model** -- Use `Tab` to toggle between Gemini and OpenRouter, arrow keys to pick a model.
-2. **Load topics** -- Go to the Topics screen and press Enter to pull 25 random topics from `topics.txt` (309 total). Select which topics to generate.
-3. **Generate companies** -- Use the Companies screen to generate two fictional companies with employee rosters sourced from `companies.txt` and `people.txt`.
-4. **Configure** -- Set file count, attachment percentage, reply/forward/end-of-chain weights, and Bates options.
-5. **Preview prompt** -- Check the Prompt Preview screen to see exactly what will be sent to the LLM.
-6. **Generate** -- Run the pipeline. Output lands in `output/<topic_name>/`.
-7. **Convert & stamp** -- Convert to PDF and apply Bates numbering from within the TUI.
 
 ## Project Structure
 
@@ -127,6 +106,27 @@ Settings are persisted in `settings.json` and editable through the TUI. Key opti
 - **Companies** -- Two auto-generated companies with employee rosters from `companies.txt` and `people.txt`
 - **Thread weights** -- Reply, forward, and end-of-chain percentages
 - **Bates** -- Prefix, separator, start number, and padding width
+
+## CLI Usage
+
+The Python scripts can also be run directly:
+
+```bash
+# Generate emails
+python generate_emails.py \
+  --files 25 \
+  --attachments 30 \
+  --topic "Quarterly Review" \
+  --roster roster.json \
+  --gemini \
+  --model gemini-2.5-flash
+
+# Convert .eml to PDF (with optional combine)
+python convert_to_pdf.py --folder output/quarterly_review --combine
+
+# Add Bates numbering
+python bates_stamp.py --file output/quarterly_review_combined.pdf --prefix ROBOT
+```
 
 ## License
 

@@ -32,6 +32,10 @@ STYLE_PROFILES = {
         "table_style": "Medium Shading 1 Accent 1",
         "header_type": "company",
         "footer_type": "page_number",
+        "has_cover_page": True,
+        "heading_treatment": "bottom_border",
+        "body_shading": None,
+        "section_dividers": False,
     },
     "modern_minimal": {
         "body_font": "Arial",
@@ -47,6 +51,10 @@ STYLE_PROFILES = {
         "table_style": "Light List Accent 1",
         "header_type": "none",
         "footer_type": "both",
+        "has_cover_page": False,
+        "heading_treatment": "all_caps_bottom",
+        "body_shading": None,
+        "section_dividers": False,
     },
     "formal_report": {
         "body_font": "Times New Roman",
@@ -62,6 +70,10 @@ STYLE_PROFILES = {
         "table_style": "Medium Grid 1 Accent 2",
         "header_type": "confidential",
         "footer_type": "date",
+        "has_cover_page": True,
+        "heading_treatment": "underline",
+        "body_shading": None,
+        "section_dividers": True,
     },
     "tech_memo": {
         "body_font": "Consolas",
@@ -77,6 +89,10 @@ STYLE_PROFILES = {
         "table_style": "Light Grid Accent 5",
         "header_type": "draft",
         "footer_type": "page_number",
+        "has_cover_page": False,
+        "heading_treatment": "left_accent",
+        "body_shading": "E8E8E8",
+        "section_dividers": False,
     },
     "executive_brief": {
         "body_font": "Garamond",
@@ -92,6 +108,10 @@ STYLE_PROFILES = {
         "table_style": "Medium Shading 2 Accent 3",
         "header_type": "company",
         "footer_type": "both",
+        "has_cover_page": True,
+        "heading_treatment": "shaded_bg",
+        "body_shading": None,
+        "section_dividers": False,
     },
     "compact_dense": {
         "body_font": "Verdana",
@@ -107,6 +127,10 @@ STYLE_PROFILES = {
         "table_style": "Light List Accent 3",
         "header_type": "none",
         "footer_type": "none",
+        "has_cover_page": False,
+        "heading_treatment": "box_border",
+        "body_shading": None,
+        "section_dividers": False,
     },
 }
 
@@ -160,10 +184,19 @@ class FileGenerator:
         # Add header/footer per profile
         self._add_header_footer(doc, profile)
 
-        # Add a title at the top of the Word document
+        # Derive title text from filename
         title_text = filename.replace(".docx", "").replace("_", " ")
         title_text = re.sub(r"^\d{4}\s+", "", title_text)
+
+        # Add cover page if profile uses one
+        if profile.get("has_cover_page"):
+            self._add_cover_page(doc, profile, profile_name, title_text)
+
+        # Add a title at the top of the content
         doc.add_heading(title_text, 0)
+
+        body_shading = profile.get("body_shading")
+        section_dividers = profile.get("section_dividers", False)
 
         lines = content_text.split("\n")
         for line in lines:
@@ -173,24 +206,38 @@ class FileGenerator:
 
             # Headings: ## or ###
             if stripped.startswith("### "):
-                doc.add_heading(stripped[4:].strip("# "), level=2)
+                heading = doc.add_heading(stripped[4:].strip("# "), level=2)
+                self._apply_heading_treatment(heading, profile, profile_name, 2)
             elif stripped.startswith("## "):
-                doc.add_heading(stripped[3:].strip("# "), level=1)
+                # Add section divider before H1 if enabled (not before the first one)
+                if section_dividers and len(doc.paragraphs) > 1:
+                    self._add_section_divider(doc, profile)
+                heading = doc.add_heading(stripped[3:].strip("# "), level=1)
+                self._apply_heading_treatment(heading, profile, profile_name, 1)
             elif stripped.startswith("# "):
-                doc.add_heading(stripped[2:].strip("# "), level=1)
+                if section_dividers and len(doc.paragraphs) > 1:
+                    self._add_section_divider(doc, profile)
+                heading = doc.add_heading(stripped[2:].strip("# "), level=1)
+                self._apply_heading_treatment(heading, profile, profile_name, 1)
             # Bullet list: - item or * item
             elif re.match(r"^[-*]\s+", stripped):
                 text = re.sub(r"^[-*]\s+", "", stripped)
                 para = doc.add_paragraph(style="List Bullet")
                 self._add_runs_with_bold(para, text)
+                if body_shading:
+                    self._add_paragraph_shading(para, body_shading)
             # Numbered list: 1. item
             elif re.match(r"^\d+\.\s+", stripped):
                 text = re.sub(r"^\d+\.\s+", "", stripped)
                 para = doc.add_paragraph(style="List Number")
                 self._add_runs_with_bold(para, text)
+                if body_shading:
+                    self._add_paragraph_shading(para, body_shading)
             else:
                 para = doc.add_paragraph()
                 self._add_runs_with_bold(para, stripped)
+                if body_shading:
+                    self._add_paragraph_shading(para, body_shading)
 
         # Maybe add a data table
         self._maybe_add_table(doc, profile)
@@ -208,6 +255,160 @@ class FileGenerator:
                 run.bold = True
             else:
                 paragraph.add_run(part)
+
+    def _add_paragraph_border(self, paragraph, sides, color="000000", size="4", space="1"):
+        """Add borders to a paragraph via OxmlElement XML.
+
+        sides: list of border sides, e.g. ["bottom"], ["left"], ["top","bottom","left","right"]
+        color: hex color string without #
+        size: border width in eighths of a point (e.g. "4" = 0.5pt, "12" = 1.5pt)
+        space: spacing between border and text in points
+        """
+        pPr = paragraph._p.get_or_add_pPr()
+        pBdr = pPr.makeelement(qn("w:pBdr"), {})
+        for side in sides:
+            border_el = pBdr.makeelement(qn(f"w:{side}"), {
+                qn("w:val"): "single",
+                qn("w:sz"): size,
+                qn("w:space"): space,
+                qn("w:color"): color,
+            })
+            pBdr.append(border_el)
+        pPr.append(pBdr)
+
+    def _add_paragraph_shading(self, paragraph, fill_color):
+        """Add background fill color to a paragraph via OxmlElement XML.
+
+        fill_color: hex color string without # (e.g. "E8E8E8")
+        """
+        pPr = paragraph._p.get_or_add_pPr()
+        shd = pPr.makeelement(qn("w:shd"), {
+            qn("w:val"): "clear",
+            qn("w:color"): "auto",
+            qn("w:fill"): fill_color,
+        })
+        pPr.append(shd)
+
+    def _add_cover_page(self, doc, profile, profile_name, title_text):
+        """Add a styled cover page with a page break for profiles that use one."""
+        heading_color = profile["heading_color"]
+        hex_color = f"{heading_color[0]:02X}{heading_color[1]:02X}{heading_color[2]:02X}"
+
+        if profile_name == "corporate_classic":
+            # Centered title, company name, date, horizontal rule
+            for _ in range(6):
+                doc.add_paragraph("")  # vertical spacing
+            p_title = doc.add_paragraph()
+            p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = p_title.add_run(title_text)
+            run.font.size = profile["title_size"]
+            run.font.name = profile["heading_font"]
+            run.font.color.rgb = profile["heading_color"]
+            run.bold = True
+
+            # Horizontal rule under title
+            self._add_paragraph_border(p_title, ["bottom"], hex_color, "12", "6")
+
+            doc.add_paragraph("")  # spacer
+
+            p_company = doc.add_paragraph()
+            p_company.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = p_company.add_run(fake.company())
+            run.font.size = Pt(14)
+            run.font.name = profile["heading_font"]
+            run.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+
+            p_date = doc.add_paragraph()
+            p_date.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = p_date.add_run(fake.date_this_year().strftime("%B %d, %Y"))
+            run.font.size = Pt(12)
+            run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+
+        elif profile_name == "formal_report":
+            # Centered, large title — CONFIDENTIAL header is already in the header
+            for _ in range(5):
+                doc.add_paragraph("")
+            p_title = doc.add_paragraph()
+            p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = p_title.add_run(title_text.upper())
+            run.font.size = profile["title_size"]
+            run.font.name = profile["heading_font"]
+            run.font.color.rgb = profile["heading_color"]
+            run.bold = True
+
+            doc.add_paragraph("")
+
+            p_sub = doc.add_paragraph()
+            p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = p_sub.add_run(fake.date_this_year().strftime("%B %Y"))
+            run.font.size = Pt(14)
+            run.font.name = profile["heading_font"]
+            run.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+
+        elif profile_name == "executive_brief":
+            # Elegant — title + subtitle only, large font
+            for _ in range(7):
+                doc.add_paragraph("")
+            p_title = doc.add_paragraph()
+            p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = p_title.add_run(title_text)
+            run.font.size = Pt(36)
+            run.font.name = profile["heading_font"]
+            run.font.color.rgb = profile["heading_color"]
+
+            p_sub = doc.add_paragraph()
+            p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = p_sub.add_run("Executive Brief")
+            run.font.size = Pt(16)
+            run.font.name = profile["heading_font"]
+            run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+            run.italic = True
+
+        # Page break after cover page
+        doc.add_page_break()
+
+    def _add_section_divider(self, doc, profile):
+        """Add a horizontal rule divider paragraph."""
+        p = doc.add_paragraph()
+        self._add_paragraph_border(p, ["bottom"], "999999", "6", "1")
+        pf = p.paragraph_format
+        pf.space_before = Pt(6)
+        pf.space_after = Pt(6)
+
+    def _apply_heading_treatment(self, paragraph, profile, profile_name, level):
+        """Apply per-profile visual treatment to a heading paragraph."""
+        treatment = profile.get("heading_treatment")
+        heading_color = profile["heading_color"]
+        hex_color = f"{heading_color[0]:02X}{heading_color[1]:02X}{heading_color[2]:02X}"
+
+        if treatment == "bottom_border":
+            # Dark blue bottom border underline (corporate_classic)
+            self._add_paragraph_border(paragraph, ["bottom"], hex_color, "8", "3")
+
+        elif treatment == "all_caps_bottom":
+            # All-caps with thin light-gray bottom border (modern_minimal)
+            for run in paragraph.runs:
+                run.font.all_caps = True
+            self._add_paragraph_border(paragraph, ["bottom"], "CCCCCC", "4", "3")
+
+        elif treatment == "underline":
+            # Single underline on heading text (formal_report)
+            for run in paragraph.runs:
+                run.underline = True
+
+        elif treatment == "left_accent":
+            # Left accent border — bright blue bar (tech_memo)
+            self._add_paragraph_border(paragraph, ["left"], hex_color, "18", "6")
+
+        elif treatment == "shaded_bg":
+            # Shaded background — light green fill with dark green text (executive_brief)
+            self._add_paragraph_shading(paragraph, "E8F5E9")
+
+        elif treatment == "box_border":
+            # Full box border on all 4 sides (compact_dense)
+            self._add_paragraph_border(
+                paragraph, ["top", "bottom", "left", "right"], "999999", "4", "2"
+            )
 
     def _apply_style_profile(self, doc: Document, profile: dict) -> None:
         """Apply a visual style profile to the document (fonts, colors, margins, spacing)."""
