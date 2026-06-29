@@ -1,64 +1,64 @@
 {
-  "company_name": "Frontier Innovations",
-  "domain": "frontierinnovations.com",
+  "company_name": "Universal Dynamics",
+  "domain": "universaldynamics.com",
   "employees": [
     {
-      "name": "Joseph Carter",
-      "email": "joseph.carter@frontierinnovations.com",
+      "name": "Elena Fernandez",
+      "email": "elena.fernandez@universaldynamics.com",
       "department": "Engineering",
       "title": "Manager"
     },
     {
-      "name": "George Long",
-      "email": "george.long@frontierinnovations.com",
+      "name": "Yaa Asantewaa",
+      "email": "yaa.asantewaa@universaldynamics.com",
       "department": "Marketing",
       "title": "Specialist"
     },
     {
-      "name": "Michael Collins",
-      "email": "michael.collins@frontierinnovations.com",
+      "name": "Aisha Kamara",
+      "email": "aisha.kamara@universaldynamics.com",
       "department": "Sales",
       "title": "Director"
     },
     {
-      "name": "Carlos Mendoza",
-      "email": "carlos.mendoza@frontierinnovations.com",
+      "name": "William Wilson",
+      "email": "william.wilson@universaldynamics.com",
       "department": "HR",
       "title": "Lead"
     },
     {
-      "name": "Dmitri Petrov",
-      "email": "dmitri.petrov@frontierinnovations.com",
+      "name": "Chinwe Okoro",
+      "email": "chinwe.okoro@universaldynamics.com",
       "department": "Finance",
       "title": "Associate"
     },
     {
-      "name": "Diego Fernandez",
-      "email": "diego.fernandez@frontierinnovations.com",
+      "name": "James Hill",
+      "email": "james.hill@universaldynamics.com",
       "department": "Legal",
       "title": "Senior Engineer"
     },
     {
-      "name": "Charles Coleman",
-      "email": "charles.coleman@frontierinnovations.com",
+      "name": "William Rodriguez",
+      "email": "william.rodriguez@universaldynamics.com",
       "department": "Product",
       "title": "VP"
     },
     {
-      "name": "Christopher Jenkins",
-      "email": "christopher.jenkins@frontierinnovations.com",
+      "name": "Sofia Volkov",
+      "email": "sofia.volkov@universaldynamics.com",
       "department": "Engineering",
       "title": "Manager"
     },
     {
-      "name": "Thomas Anderson",
-      "email": "thomas.anderson@frontierinnovations.com",
+      "name": "Frank Martin",
+      "email": "frank.martin@universaldynamics.com",
       "department": "Marketing",
       "title": "Specialist"
     },
     {
-      "name": "Daniel Bell",
-      "email": "daniel.bell@frontierinnovations.com",
+      "name": "George Thompson",
+      "email": "george.thompson@universaldynamics.com",
       "department": "Sales",
       "title": "Director"
     }

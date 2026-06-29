@@ -303,8 +303,9 @@ class ThreadGenerator:
             _, new_body = self.llm.generate_email(
                 sender,
                 recipients,
-                f"Forwarding: {self.topic if self.topic else parent_email.subject}",
+                self.topic if self.topic else parent_email.subject,
                 context=parent_email.body,
+                is_forward=True,
             )
 
         if not new_body:

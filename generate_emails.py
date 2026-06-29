@@ -66,7 +66,7 @@ def main():
             help="LLM provider to use"
         )
         parser.add_argument(
-            "--model", type=str, default="gemini-2.5-flash", help="Model to use"
+            "--model", type=str, default="gemini-2.5-flash-lite", help="Model to use"
         )
         parser.add_argument(
             "--reply-pct", type=int, default=80, help="Reply probability (0-100)"

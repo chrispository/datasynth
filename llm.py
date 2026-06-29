@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class GeminiGenerator:
-    def __init__(self, model_name: str = 'gemini-2.5-flash') -> None:
+    def __init__(self, model_name: str = 'gemini-2.5-flash-lite') -> None:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY not found in environment variables or .env file")
@@ -39,9 +39,10 @@ class GeminiGenerator:
         self,
         sender: dict,
         recipients: list[dict],
-        topic: str,
+        topic: Optional[str],
         context: Optional[str] = None,
         used_subjects: Optional[list[str]] = None,
+        is_forward: bool = False,
     ) -> tuple[Optional[str], Optional[str]]:
         styles = [
             "direct and concise",
@@ -54,26 +55,38 @@ class GeminiGenerator:
             "enthusiastic"
         ]
         style = random.choice(styles)
-        
+
+        topic_line = f"Topic: {topic}\n" if topic else ""
         prompt = f"""
         Generate a professional business email.
         Sender: {sender['name']} ({sender['title']} in {sender['department']})
         Recipients: {', '.join([r['name'] for r in recipients])}
-        Topic: {topic}
-        Style/Tone: {style}
+        {topic_line}Style/Tone: {style}
         """
-        
-        if context:
+
+        if context and is_forward:
             prompt += f"""
-            
+
+            CONTEXT (Email being forwarded):
+            {context}
+
+            INSTRUCTIONS:
+            1. You are forwarding the email above to a new recipient who was NOT part of the original thread.
+            2. Write 1-3 short sentences of forwarder commentary (e.g., "FYI", "thought you should see this", "can you weigh in?"). It should sound like a brief intro, not a reply.
+            3. Do NOT restate, summarize, or rewrite the forwarded email's content.
+            4. Do NOT produce a Subject line; one will be set by the caller.
+            """
+        elif context:
+            prompt += f"""
+
             CONTEXT (Previous Email Thread):
             {context}
-            
+
             INSTRUCTIONS:
             1. You are replying to the email above.
             2. Address specific points raised in the context.
             3. Do NOT repeat the full context or history. Write ONLY the new body text of your reply.
-            4. Keep the subject consistent with the thread (Re: ...) but if this is a new thread, create a specific, interesting subject line (avoid "General check-in").
+            4. Do NOT produce a Subject line; the thread's Re: subject will be set by the caller.
             """
         else:
             prompt += f"""
@@ -88,9 +101,9 @@ class GeminiGenerator:
             4. IMPORTANT: Do NOT reuse or closely resemble any of these previously used subjects: {used_subjects}
                Each new thread MUST have a distinctly different subject line.
             """
-        
+
         prompt += "\n\nPlease provide the email in the following format:\nSubject: [Subject]\n\n[Body]"
-        
+
         content = self.generate_email_content(prompt)
         if content:
             # Basic parsing of Subject and Body
@@ -150,9 +163,10 @@ class OpenRouterGenerator:
         self,
         sender: dict,
         recipients: list[dict],
-        topic: str,
+        topic: Optional[str],
         context: Optional[str] = None,
         used_subjects: Optional[list[str]] = None,
+        is_forward: bool = False,
     ) -> tuple[Optional[str], Optional[str]]:
         styles = [
             "direct and concise",
@@ -166,15 +180,27 @@ class OpenRouterGenerator:
         ]
         style = random.choice(styles)
 
+        topic_line = f"Topic: {topic}\n" if topic else ""
         prompt = f"""
         Generate a professional business email.
         Sender: {sender['name']} ({sender['title']} in {sender['department']})
         Recipients: {', '.join([r['name'] for r in recipients])}
-        Topic: {topic}
-        Style/Tone: {style}
+        {topic_line}Style/Tone: {style}
         """
 
-        if context:
+        if context and is_forward:
+            prompt += f"""
+
+            CONTEXT (Email being forwarded):
+            {context}
+
+            INSTRUCTIONS:
+            1. You are forwarding the email above to a new recipient who was NOT part of the original thread.
+            2. Write 1-3 short sentences of forwarder commentary (e.g., "FYI", "thought you should see this", "can you weigh in?"). It should sound like a brief intro, not a reply.
+            3. Do NOT restate, summarize, or rewrite the forwarded email's content.
+            4. Do NOT produce a Subject line; one will be set by the caller.
+            """
+        elif context:
             prompt += f"""
 
             CONTEXT (Previous Email Thread):
@@ -184,7 +210,7 @@ class OpenRouterGenerator:
             1. You are replying to the email above.
             2. Address specific points raised in the context.
             3. Do NOT repeat the full context or history. Write ONLY the new body text of your reply.
-            4. Keep the subject consistent with the thread (Re: ...) but if this is a new thread, create a specific, interesting subject line (avoid "General check-in").
+            4. Do NOT produce a Subject line; the thread's Re: subject will be set by the caller.
             """
         else:
             prompt += f"""

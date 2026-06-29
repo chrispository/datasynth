@@ -3,7 +3,8 @@ use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{
-        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+        Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation,
+        ScrollbarState,
     },
     Frame,
 };
@@ -518,8 +519,19 @@ fn render_topics_section(f: &mut Frame, app: &App, area: Rect) {
             .border_style(sel_border_style),
     );
 
-    f.render_widget(gen_list, list_chunks[0]);
-    f.render_widget(sel_list, list_chunks[1]);
+    let mut gen_state = ListState::default();
+    if !app.generated_topics.is_empty() {
+        gen_state.select(Some(app.topic_cursor.min(app.generated_topics.len() - 1)));
+    }
+    let mut sel_state = ListState::default();
+    if !app.selected_topics.is_empty() {
+        sel_state.select(Some(
+            app.selected_topic_cursor
+                .min(app.selected_topics.len() - 1),
+        ));
+    }
+    f.render_stateful_widget(gen_list, list_chunks[0], &mut gen_state);
+    f.render_stateful_widget(sel_list, list_chunks[1], &mut sel_state);
 
     // Help text
     let help = Paragraph::new(Line::from(vec![
